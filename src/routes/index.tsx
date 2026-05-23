@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArmcloudEngine } from "armcloud-rtc";
 
@@ -35,6 +35,11 @@ function Index() {
   };
 
   const startCloudPhone = async () => {
+    if (engineRef.current) {
+      setStatus("Releasing previous session…");
+      stopCloudPhone();
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     setStatus("Requesting token…");
     setInjectionTrace(null);
     cleanupCameraPipeline();
@@ -251,7 +256,26 @@ function Index() {
             setStatus("Connected · camera status unknown");
           }
         },
-        onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
+        onConnectFail: ({ msg }: { msg?: string }) => {
+          setStatus("Connect failed: " + msg + " · releasing session");
+          stopCloudPhoneRef.current();
+        },
+        onConnectionStateChanged: (payload: { state: number }) => {
+          // state 4/5/6 typically indicate failed/closed/disconnected in WebRTC-ish state machines
+          if (payload?.state >= 4) {
+            setStatus("Connection state " + payload.state + " · releasing session");
+            stopCloudPhoneRef.current();
+          }
+        },
+        onErrorMessage: (payload: { msg?: string; code?: number | string }) => {
+          setStatus("Error: " + (payload?.msg ?? payload?.code ?? "unknown") + " · releasing session");
+          stopCloudPhoneRef.current();
+        },
+        onUserLeave: (event: { reason?: string | number }) => {
+          setStatus("Session ended: " + (event?.reason ?? "user leave") + " · releasing");
+          stopCloudPhoneRef.current();
+        },
+
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
           if (b) {
@@ -264,14 +288,43 @@ function Index() {
     });
   };
 
+
   const stopCloudPhone = () => {
-    if (engineRef.current) {
-      engineRef.current.stop();
-      engineRef.current = null;
-      setStatus("Idle");
+    try {
+      if (engineRef.current) {
+        try {
+          engineRef.current.stop();
+        } catch (e) {
+          console.warn("[CloudPhone] engine.stop() threw", e);
+        }
+        engineRef.current = null;
+        setStatus("Idle");
+      }
       cleanupCameraPipeline();
+    } catch (e) {
+      console.warn("[CloudPhone] stopCloudPhone error", e);
     }
   };
+
+  const stopCloudPhoneRef = useRef(stopCloudPhone);
+  stopCloudPhoneRef.current = stopCloudPhone;
+
+  useEffect(() => {
+    const handler = () => stopCloudPhoneRef.current();
+    const visHandler = () => {
+      if (document.visibilityState === "hidden") stopCloudPhoneRef.current();
+    };
+    window.addEventListener("beforeunload", handler);
+    window.addEventListener("pagehide", handler);
+    document.addEventListener("visibilitychange", visHandler);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      window.removeEventListener("pagehide", handler);
+      document.removeEventListener("visibilitychange", visHandler);
+      stopCloudPhoneRef.current();
+    };
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
