@@ -31,13 +31,16 @@ function Index() {
 
   const handleTestToken = async () => {
     setStatus("Calling cloudphone-token...");
-    const { data, error } = await supabase.functions.invoke("cloudphone-token");
+    const { data, error } = await supabase.functions.invoke("cloudphone-token", {
+      body: {},
+    });
     if (error) {
-      setStatus(`Error: ${error.message}`);
+      setStatus(`Error: ${error.message}\n${JSON.stringify(data ?? {}, null, 2)}`);
       return;
     }
     setStatus(JSON.stringify(data, null, 2));
   };
+
 
 
   return (
