@@ -19,6 +19,12 @@ function Index() {
 
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch (_) {
+      setStatus("Camera permission denied");
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
     if (error) {
       setStatus("Token error: " + error.message);
@@ -53,7 +59,16 @@ function Index() {
           }
           engineRef.current?.start();
         },
-        onConnectSuccess: () => setStatus("Connected"),
+        onConnectSuccess: async () => {
+          setStatus("Connected");
+          engineRef.current!.startMediaStream(2);
+          try {
+            const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
+            setStatus("Connected · camera: " + (s as any).status);
+          } catch (_) {
+            setStatus("Connected · camera status unknown");
+          }
+        },
         onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
