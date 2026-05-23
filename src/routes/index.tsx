@@ -104,6 +104,7 @@ function Index() {
     video.style.display = "block";
     video.style.visibility = "visible";
     video.style.pointerEvents = "none";
+    video.style.zIndex = "-1";
     document.body.appendChild(video);
     hiddenVideoRef.current = video;
 
