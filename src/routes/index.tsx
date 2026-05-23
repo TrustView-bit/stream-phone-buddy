@@ -200,6 +200,12 @@ function Index() {
         <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
           {status}
         </pre>
+
+        {camSettings && (
+          <div className="w-full text-center text-xs text-muted-foreground">
+            Camera: {camSettings.width}×{camSettings.height} (aspect {camSettings.aspectRatio?.toFixed(3) ?? "n/a"})
+          </div>
+        )}
       </div>
     </div>
   );
