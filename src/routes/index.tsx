@@ -110,26 +110,35 @@ function Index() {
 
     setVideoDebug(`video: created, readyState=${video.readyState}`);
 
+    // Kick off play() inside the user-gesture-rooted call stack. Don't await yet,
+    // so awaiting doesn't break the gesture on mobile.
+    let playError: string | null = null;
+    const playPromise = video.play().catch((e) => {
+      playError = e instanceof Error ? e.message : String(e);
+      console.warn("[CloudPhone] video.play() rejected", e);
+      setVideoDebug(`video: play() error: ${playError}`);
+    });
+
     const waitForData = new Promise<void>((resolve) => {
       if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
       const onReady = () => {
-        if (video.videoWidth > 0) {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
           video.removeEventListener("loadeddata", onReady);
           video.removeEventListener("loadedmetadata", onReady);
+          video.removeEventListener("canplay", onReady);
           resolve();
         }
       };
       video.addEventListener("loadeddata", onReady);
       video.addEventListener("loadedmetadata", onReady);
+      video.addEventListener("canplay", onReady);
     });
 
-    try {
-      await video.play();
-    } catch (e) {
-      console.warn("[CloudPhone] video.play() rejected", e);
-    }
+    await playPromise;
     await waitForData;
-    setVideoDebug(`video: playing readyState=${video.readyState} ${video.videoWidth}×${video.videoHeight}`);
+    setVideoDebug(
+      `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused}${playError ? ` playErr=${playError}` : ""}`,
+    );
 
     const CANVAS_W = 720;
     const CANVAS_H = 1280;
