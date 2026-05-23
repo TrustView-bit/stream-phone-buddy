@@ -15,6 +15,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
+  const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
 
   const startCloudPhone = async () => {
@@ -29,6 +30,7 @@ function Index() {
       });
       const settings = test.getVideoTracks()[0]?.getSettings();
       console.log("Camera settings:", settings);
+      setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
       test.getTracks().forEach((t) => t.stop());
     } catch (_) {
       setStatus("Camera permission denied");
@@ -198,6 +200,12 @@ function Index() {
         <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
           {status}
         </pre>
+
+        {camSettings && (
+          <div className="w-full text-center text-xs text-muted-foreground">
+            Camera: {camSettings.width}×{camSettings.height} (aspect {camSettings.aspectRatio?.toFixed(3) ?? "n/a"})
+          </div>
+        )}
       </div>
     </div>
   );
