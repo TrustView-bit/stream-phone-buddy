@@ -56,27 +56,13 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
-      let raw: MediaStream;
-      try {
-        raw = await getRawUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            aspectRatio: { exact: 0.5625 },
-          },
-        });
-      } catch (exactErr) {
-        console.warn("[CloudPhone] exact aspectRatio failed, falling back to ideal", exactErr);
-        raw = await getRawUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            aspectRatio: { ideal: 0.5625 },
-          },
-        });
-      }
+      const raw = await getRawUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
       rawCameraRef.current = raw;
       const rawTrack = raw.getVideoTracks()[0];
       (rawTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
