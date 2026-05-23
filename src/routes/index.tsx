@@ -67,17 +67,17 @@ function Index() {
           const sw = video.videoWidth;
           const sh = video.videoHeight;
           if (sw && sh) {
-            // "cover": scale so source fills canvas, crop overflow, center.
-            const scale = Math.max(CANVAS_W / sw, CANVAS_H / sh);
+            // "cover": always fill the entire canvas, crop the overflow.
+            const scale = Math.max(canvas.width / sw, canvas.height / sh);
             const dw = sw * scale;
             const dh = sh * scale;
-            const dx = (CANVAS_W - dw) / 2;
-            const dy = (CANVAS_H - dh) / 2;
+            const dx = (canvas.width - dw) / 2;
+            const dy = (canvas.height - dh) / 2;
             ctx.save();
-            // Mirror horizontally.
-            ctx.translate(CANVAS_W, 0);
+            // Horizontal flip (un-mirror front camera).
+            ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
-            ctx.drawImage(video, 0, 0, sw, sh, CANVAS_W - dx - dw, dy, dw, dh);
+            ctx.drawImage(video, dx, dy, dw, dh);
             ctx.restore();
           }
           raf = requestAnimationFrame(draw);
