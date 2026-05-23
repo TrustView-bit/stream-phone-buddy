@@ -19,6 +19,12 @@ function Index() {
 
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch (_) {
+      setStatus("Camera permission denied");
+      return;
+    }
     const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
     if (error) {
       setStatus("Token error: " + error.message);
