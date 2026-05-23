@@ -35,12 +35,11 @@ function utcDate() {
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T` +
     `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
 }
-async function signGet(sk: string, ak: string) {
-  const params = "";
+async function signPost(sk: string, ak: string, body: string) {
   const xDate = utcDate();
   const shortDate = xDate.substring(0, 8);
   const scope = `${shortDate}/${SERVICE}/request`;
-  const xContentSha256 = await sha256Hex(params);
+  const xContentSha256 = await sha256Hex(body);
   const canonical =
     `host:${API_HOST}\n` +
     `x-date:${xDate}\n` +
