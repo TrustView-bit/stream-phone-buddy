@@ -63,8 +63,8 @@ function Index() {
           setStatus("Connected");
           engineRef.current!.startMediaStream(2);
           try {
-            const s = await engineRef.current!.getInjectStreamStatus("camera", 5000);
-            setStatus("Connected · camera: " + s.status);
+            const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
+            setStatus("Connected · camera: " + (s as any).status);
           } catch (_) {
             setStatus("Connected · camera status unknown");
           }
