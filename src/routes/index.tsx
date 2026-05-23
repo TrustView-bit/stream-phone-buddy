@@ -94,13 +94,15 @@ function Index() {
     video.setAttribute("webkit-playsinline", "true");
     video.setAttribute("muted", "");
     video.setAttribute("autoplay", "");
-    // Must be in the DOM (even if invisible/0-size) for reliable mobile playback.
-    video.style.position = "fixed";
-    video.style.left = "-9999px";
+    // Must stay rendered (not display:none / visibility:hidden) so mobile browsers decode frames.
+    video.style.position = "absolute";
+    video.style.left = "0";
     video.style.top = "0";
-    video.style.width = "2px";
-    video.style.height = "2px";
-    video.style.opacity = "0";
+    video.style.width = "1px";
+    video.style.height = "1px";
+    video.style.opacity = "0.01";
+    video.style.display = "block";
+    video.style.visibility = "visible";
     video.style.pointerEvents = "none";
     document.body.appendChild(video);
     hiddenVideoRef.current = video;
