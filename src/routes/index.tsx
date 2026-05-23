@@ -27,6 +27,8 @@ function Index() {
           aspectRatio: { ideal: 9 / 16 },
         },
       });
+      const settings = test.getVideoTracks()[0]?.getSettings();
+      console.log("Camera settings:", settings);
       test.getTracks().forEach((t) => t.stop());
     } catch (_) {
       setStatus("Camera permission denied");
