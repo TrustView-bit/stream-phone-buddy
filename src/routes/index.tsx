@@ -18,6 +18,8 @@ function Index() {
   const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const [canvasSettings, setCanvasSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const [injectionTrace, setInjectionTrace] = useState<string | null>(null);
+  const [videoDebug, setVideoDebug] = useState<string>("video: not started");
+  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
   const rawCameraRef = useRef<MediaStream | null>(null);
   const canvasCameraRef = useRef<MediaStream | null>(null);
