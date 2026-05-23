@@ -265,13 +265,41 @@ function Index() {
   };
 
   const stopCloudPhone = () => {
-    if (engineRef.current) {
-      engineRef.current.stop();
-      engineRef.current = null;
-      setStatus("Idle");
+    try {
+      if (engineRef.current) {
+        try {
+          engineRef.current.stop();
+        } catch (e) {
+          console.warn("[CloudPhone] engine.stop() threw", e);
+        }
+        engineRef.current = null;
+        setStatus("Idle");
+      }
       cleanupCameraPipeline();
+    } catch (e) {
+      console.warn("[CloudPhone] stopCloudPhone error", e);
     }
   };
+
+  const stopCloudPhoneRef = useRef(stopCloudPhone);
+  stopCloudPhoneRef.current = stopCloudPhone;
+
+  useEffect(() => {
+    const handler = () => stopCloudPhoneRef.current();
+    const visHandler = () => {
+      if (document.visibilityState === "hidden") stopCloudPhoneRef.current();
+    };
+    window.addEventListener("beforeunload", handler);
+    window.addEventListener("pagehide", handler);
+    document.addEventListener("visibilitychange", visHandler);
+    return () => {
+      window.removeEventListener("beforeunload", handler);
+      window.removeEventListener("pagehide", handler);
+      document.removeEventListener("visibilitychange", visHandler);
+      stopCloudPhoneRef.current();
+    };
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
