@@ -15,6 +15,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
+  const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
 
   const startCloudPhone = async () => {
