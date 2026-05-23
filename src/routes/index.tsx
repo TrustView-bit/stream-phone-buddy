@@ -229,31 +229,32 @@ function Index() {
       w.__cloudPhoneOrigGetUserMedia = md.getUserMedia.bind(md);
     }
 
-    if (w.__cloudPhoneGumPatchVersion !== "canvas-v3-red-marker") {
+    if (w.__cloudPhoneGumPatchVersion !== "canvas-v3-raw-test") {
       const md = navigator.mediaDevices;
       md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
         if (!constraints?.video) return w.__cloudPhoneOrigGetUserMedia!(constraints);
 
-        const canvasStream = canvasCameraRef.current;
-        const canvasTrack = canvasStream?.getVideoTracks()[0];
-        if (!canvasStream || !canvasTrack || canvasTrack.readyState === "ended") {
-          throw new DOMException("Canvas camera stream is not ready for SDK injection", "NotReadableError");
+        const rawStream = rawCameraRef.current;
+        const rawTrack = rawStream?.getVideoTracks()[0];
+        if (!rawStream || !rawTrack || rawTrack.readyState === "ended") {
+          throw new DOMException("Raw camera stream is not ready for SDK injection", "NotReadableError");
         }
 
-        const sdkStream = new MediaStream([canvasTrack]);
-        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
-        const injectedSettings = canvasTrack.getSettings();
-        console.log("[CloudPhone] SDK getUserMedia intercepted; returning canvas stream", {
+        const sdkStream = new MediaStream([rawTrack.clone()]);
+        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-test";
+        const injectedSettings = rawTrack.getSettings();
+        console.log("[CloudPhone] SDK getUserMedia intercepted; returning RAW camera stream (TEST MODE)", {
           constraints,
-          source: "canvas-captureStream",
+          source: "raw-camera-test",
           settings: injectedSettings,
         });
         setInjectionTrace(
-          `SDK getUserMedia: canvas captureStream ${injectedSettings.width ?? CANVAS_W}×${injectedSettings.height ?? CANVAS_H}`,
+          `SDK getUserMedia: RAW camera ${injectedSettings.width ?? "?"}×${injectedSettings.height ?? "?"} (TEST MODE)`,
         );
+        setStatus("TEST MODE: raw camera, no canvas");
         return sdkStream;
       };
-      w.__cloudPhoneGumPatchVersion = "canvas-v3-red-marker";
+      w.__cloudPhoneGumPatchVersion = "canvas-v3-raw-test";
     }
 
     if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
