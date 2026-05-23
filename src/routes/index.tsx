@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+// @ts-expect-error - armcloud-rtc has no bundled types
+import { ArmcloudEngine } from "armcloud-rtc";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -14,34 +16,64 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
+  const engineRef = useRef<any>(null);
 
-  const handleStart = () => {
-    console.log("Start pressed");
-    setStatus("Starting...");
-  };
-
-  const handleStop = () => {
-    console.log("Stop pressed");
-    setStatus("Idle");
-  };
-
-  const handlePlay = () => {
-    console.log("Play pressed");
-  };
-
-  const handleTestToken = async () => {
-    setStatus("Calling cloudphone-token...");
-    const { data, error } = await supabase.functions.invoke("cloudphone-token", {
-      body: {},
-    });
+  const startCloudPhone = async () => {
+    setStatus("Requesting token…");
+    const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
     if (error) {
-      setStatus(`Error: ${error.message}\n${JSON.stringify(data ?? {}, null, 2)}`);
+      setStatus("Token error: " + error.message);
       return;
     }
-    setStatus(JSON.stringify(data, null, 2));
+    const token = data.token;
+    const padCode = data.padCode;
+
+    engineRef.current = new ArmcloudEngine({
+      baseUrl: "https://openapi-hk.armcloud.net",
+      token,
+      enableCamera: true,
+      enableMicrophone: false,
+      viewId: "phoneBox",
+      deviceInfo: {
+        padCode,
+        userId: crypto.randomUUID(),
+        mediaType: 3,
+        rotateType: 0,
+        videoStream: { resolution: 12, frameRate: 8, bitrate: 1 },
+      },
+      callbacks: {
+        onInit: async ({ code }: { code: number }) => {
+          if (code !== 0) {
+            setStatus("Init failed: " + code);
+            return;
+          }
+          if (!(await engineRef.current.isSupported())) {
+            setStatus("This browser does not support WebRTC");
+            return;
+          }
+          engineRef.current.start();
+        },
+        onConnectSuccess: () => setStatus("Connected"),
+        onConnectFail: ({ msg }: { msg: string }) => setStatus("Connect failed: " + msg),
+        onAutoplayFailed: () => {
+          const b = document.getElementById("playBtn");
+          if (b) {
+            b.style.display = "inline-block";
+            b.onclick = () => engineRef.current?.startPlay();
+          }
+        },
+        onAutoRecoveryTime: () => engineRef.current?.start(),
+      },
+    });
   };
 
-
+  const stopCloudPhone = () => {
+    if (engineRef.current) {
+      engineRef.current.stop();
+      engineRef.current = null;
+      setStatus("Idle");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -58,30 +90,23 @@ function Index() {
 
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
-            onClick={handleStart}
+            onClick={startCloudPhone}
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Start
           </button>
           <button
-            onClick={handleStop}
+            onClick={stopCloudPhone}
             className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium transition-colors hover:bg-accent"
           >
             Stop
           </button>
           <button
             id="playBtn"
-            onClick={handlePlay}
             hidden
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"
           >
             Tap to play
-          </button>
-          <button
-            onClick={handleTestToken}
-            className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium transition-colors hover:bg-accent"
-          >
-            Test token function
           </button>
         </div>
 
