@@ -51,7 +51,7 @@ function Index() {
             setStatus("This browser does not support WebRTC");
             return;
           }
-          engineRef.current.start();
+          engineRef.current?.start();
         },
         onConnectSuccess: () => setStatus("Connected"),
         onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
