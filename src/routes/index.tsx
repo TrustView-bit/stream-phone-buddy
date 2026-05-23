@@ -30,6 +30,7 @@ function Index() {
       });
       const settings = test.getVideoTracks()[0]?.getSettings();
       console.log("Camera settings:", settings);
+      setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
       test.getTracks().forEach((t) => t.stop());
     } catch (_) {
       setStatus("Camera permission denied");
