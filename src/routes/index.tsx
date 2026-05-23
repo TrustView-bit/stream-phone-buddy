@@ -46,7 +46,8 @@ function Index() {
             setStatus("Init failed: " + code);
             return;
           }
-          if (!(await engineRef.current.isSupported())) {
+          const supported = await ArmcloudEngine.isSupported();
+          if (!supported) {
             setStatus("This browser does not support WebRTC");
             return;
           }
