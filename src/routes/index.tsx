@@ -20,21 +20,43 @@ function Index() {
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
     try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      const test = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+          aspectRatio: { ideal: 9 / 16 },
+        },
+      });
+      test.getTracks().forEach((t) => t.stop());
     } catch (_) {
       setStatus("Camera permission denied");
       return;
     }
 
     // Mirror the webcam horizontally before injection (SDK exposes no mirror option).
-    // Wrap getUserMedia so the SDK receives a horizontally-flipped MediaStream.
+    // Wrap getUserMedia so the SDK receives a horizontally-flipped MediaStream,
+    // and force portrait constraints so the injected feed matches the phone camera.
     const w = window as unknown as { __gumPatched?: boolean };
     if (!w.__gumPatched) {
       const md = navigator.mediaDevices;
       const orig = md.getUserMedia.bind(md);
       md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
-        const stream = await orig(constraints);
+        let merged = constraints;
+        if (constraints?.video) {
+          const v = constraints.video === true ? {} : constraints.video;
+          merged = {
+            ...constraints,
+            video: {
+              ...v,
+              width: { ideal: 720 },
+              height: { ideal: 1280 },
+              aspectRatio: { ideal: 9 / 16 },
+            },
+          };
+        }
+        const stream = await orig(merged);
         if (!constraints?.video) return stream;
+
         const track = stream.getVideoTracks()[0];
         if (!track) return stream;
         const settings = track.getSettings();
