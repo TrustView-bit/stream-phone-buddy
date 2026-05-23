@@ -127,6 +127,8 @@ function Index() {
       __cloudPhoneGumPatchVersion?: string;
       __cloudPhoneOrigAddTrack?: typeof RTCPeerConnection.prototype.addTrack;
       __cloudPhoneAddTrackPatched?: boolean;
+      __cloudPhoneOrigAddTransceiver?: typeof RTCPeerConnection.prototype.addTransceiver;
+      __cloudPhoneAddTransceiverPatched?: boolean;
     };
 
     if (!w.__cloudPhoneOrigGetUserMedia) {
@@ -175,6 +177,27 @@ function Index() {
         return w.__cloudPhoneOrigAddTrack!.call(this, track, ...streams);
       };
       w.__cloudPhoneAddTrackPatched = true;
+    }
+
+    if (!w.__cloudPhoneAddTransceiverPatched && typeof window.RTCPeerConnection?.prototype?.addTransceiver === "function") {
+      w.__cloudPhoneOrigAddTransceiver = RTCPeerConnection.prototype.addTransceiver;
+      RTCPeerConnection.prototype.addTransceiver = function patchedAddTransceiver(
+        trackOrKind: MediaStreamTrack | string,
+        init?: RTCRtpTransceiverInit,
+      ) {
+        if (trackOrKind instanceof MediaStreamTrack) {
+          const source = (trackOrKind as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
+          const settings = trackOrKind.getSettings?.();
+          console.log("[CloudPhone] RTCPeerConnection.addTransceiver", { kind: trackOrKind.kind, source, settings });
+          if (trackOrKind.kind === "video") {
+            setInjectionTrace((prev) =>
+              `${prev ?? "SDK getUserMedia: not observed"}\nWebRTC addTransceiver: ${source} ${settings?.width ?? "?"}×${settings?.height ?? "?"}`,
+            );
+          }
+        }
+        return w.__cloudPhoneOrigAddTransceiver!.call(this, trackOrKind, init);
+      };
+      w.__cloudPhoneAddTransceiverPatched = true;
     }
 
     const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
