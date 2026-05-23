@@ -41,7 +41,7 @@ function Index() {
         videoStream: { resolution: 12, frameRate: 8, bitrate: 1 },
       },
       callbacks: {
-        onInit: async ({ code }: { code: number }) => {
+        onInit: async ({ code }: { code: number | string }) => {
           if (code !== 0) {
             setStatus("Init failed: " + code);
             return;
@@ -53,7 +53,7 @@ function Index() {
           engineRef.current.start();
         },
         onConnectSuccess: () => setStatus("Connected"),
-        onConnectFail: ({ msg }: { msg: string }) => setStatus("Connect failed: " + msg),
+        onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
           if (b) {
