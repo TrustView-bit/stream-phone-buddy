@@ -17,90 +17,187 @@ function Index() {
   const [status, setStatus] = useState("Idle");
   const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const [canvasSettings, setCanvasSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
+  const [injectionTrace, setInjectionTrace] = useState<string | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
+  const rawCameraRef = useRef<MediaStream | null>(null);
+  const canvasCameraRef = useRef<MediaStream | null>(null);
+  const drawRafRef = useRef<number | null>(null);
+
+  const cleanupCameraPipeline = () => {
+    if (drawRafRef.current !== null) {
+      cancelAnimationFrame(drawRafRef.current);
+      drawRafRef.current = null;
+    }
+    canvasCameraRef.current?.getTracks().forEach((track) => track.stop());
+    rawCameraRef.current?.getTracks().forEach((track) => track.stop());
+    canvasCameraRef.current = null;
+    rawCameraRef.current = null;
+  };
 
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
+    setInjectionTrace(null);
+    cleanupCameraPipeline();
+    const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
+    const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
-      const test = await navigator.mediaDevices.getUserMedia({
+      const raw = await getRawUserMedia({
         video: {
           width: { ideal: 720 },
           height: { ideal: 1280 },
           aspectRatio: { ideal: 9 / 16 },
         },
       });
-      const settings = test.getVideoTracks()[0]?.getSettings();
+      rawCameraRef.current = raw;
+      const rawTrack = raw.getVideoTracks()[0];
+      (rawTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
+      const settings = rawTrack?.getSettings();
       console.log("Camera settings:", settings);
       setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
-      test.getTracks().forEach((t) => t.stop());
     } catch (_) {
       setStatus("Camera permission denied");
       return;
     }
 
-    // Wrap getUserMedia so the SDK receives a portrait 720x1280 stream drawn via
-    // canvas "cover" logic from the (often landscape) camera, with horizontal mirror.
-    const w = window as unknown as { __gumPatched?: boolean };
-    if (!w.__gumPatched) {
+    // The SDK does not accept an app-supplied MediaStream in startMediaStream().
+    // It calls navigator.mediaDevices.getUserMedia() internally, so force that
+    // exact SDK request to receive the canvas captureStream instead of raw camera.
+    const rawStream = rawCameraRef.current;
+    const rawTrack = rawStream?.getVideoTracks()[0];
+    if (!rawStream || !rawTrack) {
+      setStatus("Camera stream unavailable");
+      return;
+    }
+
+    const video = document.createElement("video");
+    video.srcObject = rawStream;
+    video.muted = true;
+    video.playsInline = true;
+    await video.play().catch(() => {});
+
+    const CANVAS_W = 720;
+    const CANVAS_H = 1280;
+    const canvas = document.createElement("canvas");
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext("2d")!;
+
+    const draw = () => {
+      const sw = video.videoWidth || rawTrack.getSettings().width || CANVAS_W;
+      const sh = video.videoHeight || rawTrack.getSettings().height || CANVAS_H;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (sw && sh && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        // "cover": always fill the whole portrait canvas, cropping overflow.
+        const scale = Math.max(canvas.width / sw, canvas.height / sh);
+        const dw = sw * scale;
+        const dh = sh * scale;
+        const dx = (canvas.width - dw) / 2;
+        const dy = (canvas.height - dh) / 2;
+        ctx.save();
+        // Un-mirror the front-camera source before captureStream() sees it.
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, dx, dy, dw, dh);
+        ctx.restore();
+      }
+      // Temporary proof marker: if this appears in the cloud phone camera,
+      // the SDK is publishing this canvas stream, not the raw camera stream.
+      ctx.fillStyle = "#ff0000";
+      ctx.fillRect(0, 0, 96, 96);
+      drawRafRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+
+    const portrait = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+    (portrait as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
+    const portraitTrack = portrait.getVideoTracks()[0];
+    (portraitTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
+    canvasCameraRef.current = portrait;
+    const cs = portraitTrack?.getSettings();
+    setCanvasSettings({
+      width: cs?.width ?? CANVAS_W,
+      height: cs?.height ?? CANVAS_H,
+      aspectRatio: cs?.aspectRatio ?? CANVAS_W / CANVAS_H,
+    });
+
+    rawTrack.addEventListener("ended", cleanupCameraPipeline);
+
+    const w = window as unknown as {
+      __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia;
+      __cloudPhoneGumPatchVersion?: string;
+      __cloudPhoneOrigAddTrack?: typeof RTCPeerConnection.prototype.addTrack;
+      __cloudPhoneAddTrackPatched?: boolean;
+      __cloudPhoneOrigAddTransceiver?: typeof RTCPeerConnection.prototype.addTransceiver;
+      __cloudPhoneAddTransceiverPatched?: boolean;
+    };
+
+    if (!w.__cloudPhoneOrigGetUserMedia) {
       const md = navigator.mediaDevices;
-      const orig = md.getUserMedia.bind(md);
+      w.__cloudPhoneOrigGetUserMedia = md.getUserMedia.bind(md);
+    }
+
+    if (w.__cloudPhoneGumPatchVersion !== "canvas-v3-red-marker") {
+      const md = navigator.mediaDevices;
       md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
-        const stream = await orig(constraints);
-        if (!constraints?.video) return stream;
+        if (!constraints?.video) return w.__cloudPhoneOrigGetUserMedia!(constraints);
 
-        const track = stream.getVideoTracks()[0];
-        if (!track) return stream;
-        const video = document.createElement("video");
-        video.srcObject = stream;
-        video.muted = true;
-        video.playsInline = true;
-        await video.play().catch(() => {});
+        const canvasStream = canvasCameraRef.current;
+        const canvasTrack = canvasStream?.getVideoTracks()[0];
+        if (!canvasStream || !canvasTrack || canvasTrack.readyState === "ended") {
+          throw new DOMException("Canvas camera stream is not ready for SDK injection", "NotReadableError");
+        }
 
-        const CANVAS_W = 720;
-        const CANVAS_H = 1280;
-        const canvas = document.createElement("canvas");
-        canvas.width = CANVAS_W;
-        canvas.height = CANVAS_H;
-        const ctx = canvas.getContext("2d")!;
-        let raf = 0;
-        const draw = () => {
-          const sw = video.videoWidth;
-          const sh = video.videoHeight;
-          if (sw && sh) {
-            // "cover": always fill the entire canvas, crop the overflow.
-            const scale = Math.max(canvas.width / sw, canvas.height / sh);
-            const dw = sw * scale;
-            const dh = sh * scale;
-            const dx = (canvas.width - dw) / 2;
-            const dy = (canvas.height - dh) / 2;
-            ctx.save();
-            // Horizontal flip (un-mirror front camera).
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, dx, dy, dw, dh);
-            ctx.restore();
-          }
-          raf = requestAnimationFrame(draw);
-        };
-        draw();
-        const portrait = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
-        // Report canvas stream dimensions to the UI once available.
-        setTimeout(() => {
-          const cs = portrait.getVideoTracks()[0]?.getSettings();
-          setCanvasSettings({
-            width: cs?.width ?? CANVAS_W,
-            height: cs?.height ?? CANVAS_H,
-            aspectRatio: cs?.aspectRatio ?? CANVAS_W / CANVAS_H,
-          });
-        }, 250);
-        track.addEventListener("ended", () => {
-          cancelAnimationFrame(raf);
-          portrait.getTracks().forEach((t) => t.stop());
+        const sdkStream = new MediaStream([canvasTrack]);
+        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
+        const injectedSettings = canvasTrack.getSettings();
+        console.log("[CloudPhone] SDK getUserMedia intercepted; returning canvas stream", {
+          constraints,
+          source: "canvas-captureStream",
+          settings: injectedSettings,
         });
-        stream.getAudioTracks().forEach((t) => portrait.addTrack(t));
-        return portrait;
+        setInjectionTrace(
+          `SDK getUserMedia: canvas captureStream ${injectedSettings.width ?? CANVAS_W}×${injectedSettings.height ?? CANVAS_H}`,
+        );
+        return sdkStream;
       };
-      w.__gumPatched = true;
+      w.__cloudPhoneGumPatchVersion = "canvas-v3-red-marker";
+    }
+
+    if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
+      w.__cloudPhoneOrigAddTrack = RTCPeerConnection.prototype.addTrack;
+      RTCPeerConnection.prototype.addTrack = function patchedAddTrack(track: MediaStreamTrack, ...streams: MediaStream[]) {
+        const source = (track as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
+        const settings = track.getSettings?.();
+        console.log("[CloudPhone] RTCPeerConnection.addTrack", { kind: track.kind, source, settings });
+        if (track.kind === "video") {
+          setInjectionTrace((prev) =>
+            `${prev ?? "SDK getUserMedia: not observed"}\nWebRTC addTrack: ${source} ${settings?.width ?? "?"}×${settings?.height ?? "?"}`,
+          );
+        }
+        return w.__cloudPhoneOrigAddTrack!.call(this, track, ...streams);
+      };
+      w.__cloudPhoneAddTrackPatched = true;
+    }
+
+    if (!w.__cloudPhoneAddTransceiverPatched && typeof window.RTCPeerConnection?.prototype?.addTransceiver === "function") {
+      w.__cloudPhoneOrigAddTransceiver = RTCPeerConnection.prototype.addTransceiver;
+      RTCPeerConnection.prototype.addTransceiver = function patchedAddTransceiver(
+        trackOrKind: MediaStreamTrack | string,
+        init?: RTCRtpTransceiverInit,
+      ) {
+        if (trackOrKind instanceof MediaStreamTrack) {
+          const source = (trackOrKind as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
+          const settings = trackOrKind.getSettings?.();
+          console.log("[CloudPhone] RTCPeerConnection.addTransceiver", { kind: trackOrKind.kind, source, settings });
+          if (trackOrKind.kind === "video") {
+            setInjectionTrace((prev) =>
+              `${prev ?? "SDK getUserMedia: not observed"}\nWebRTC addTransceiver: ${source} ${settings?.width ?? "?"}×${settings?.height ?? "?"}`,
+            );
+          }
+        }
+        return w.__cloudPhoneOrigAddTransceiver!.call(this, trackOrKind, init);
+      };
+      w.__cloudPhoneAddTransceiverPatched = true;
     }
 
     const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
@@ -139,7 +236,14 @@ function Index() {
         },
         onConnectSuccess: async () => {
           setStatus("Connected");
-          engineRef.current!.startMediaStream(2);
+          try {
+            await engineRef.current!.startMediaStream(2);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatus("Camera injection error: " + message);
+            setInjectionTrace((prev) => `${prev ?? "SDK camera injection attempted"}\nError: ${message}`);
+            return;
+          }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
             setStatus("Connected · camera: " + (s as any).status);
@@ -165,6 +269,7 @@ function Index() {
       engineRef.current.stop();
       engineRef.current = null;
       setStatus("Idle");
+      cleanupCameraPipeline();
     }
   };
 
@@ -215,6 +320,11 @@ function Index() {
           <div className="w-full text-center text-xs text-muted-foreground">
             Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
           </div>
+        )}
+        {injectionTrace && (
+          <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
+            {injectionTrace}
+          </pre>
         )}
       </div>
     </div>
