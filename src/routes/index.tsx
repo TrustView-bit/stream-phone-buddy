@@ -56,27 +56,13 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
-      let raw: MediaStream;
-      try {
-        raw = await getRawUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            aspectRatio: { exact: 0.5625 },
-          },
-        });
-      } catch (exactErr) {
-        console.warn("[CloudPhone] exact aspectRatio failed, falling back to ideal", exactErr);
-        raw = await getRawUserMedia({
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            aspectRatio: { ideal: 0.5625 },
-          },
-        });
-      }
+      const raw = await getRawUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
       rawCameraRef.current = raw;
       const rawTrack = raw.getVideoTracks()[0];
       (rawTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
@@ -160,14 +146,17 @@ function Index() {
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
     // Mobile browsers (esp. iOS Safari) require canvas in DOM for captureStream to update.
-    canvas.style.position = "absolute";
-    canvas.style.left = "0";
-    canvas.style.top = "0";
-    canvas.style.width = "1px";
-    canvas.style.height = "1px";
-    canvas.style.opacity = "0.01";
+    // Render the canvas visibly at real size so mobile browsers composite and capture it.
+    canvas.style.position = "fixed";
+    canvas.style.right = "8px";
+    canvas.style.bottom = "8px";
+    canvas.style.width = "180px";
+    canvas.style.height = "320px";
+    canvas.style.opacity = "1";
+    canvas.style.border = "2px solid #ff0000";
+    canvas.style.background = "#000";
     canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "-1";
+    canvas.style.zIndex = "9999";
     document.body.appendChild(canvas);
     (window as any).__cloudPhoneDrawCanvas = canvas;
     const ctx = canvas.getContext("2d")!;
@@ -243,32 +232,32 @@ function Index() {
       w.__cloudPhoneOrigGetUserMedia = md.getUserMedia.bind(md);
     }
 
-    if (w.__cloudPhoneGumPatchVersion !== "canvas-v3-raw-test") {
+    if (w.__cloudPhoneGumPatchVersion !== "canvas-v4-visible") {
       const md = navigator.mediaDevices;
       md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
         if (!constraints?.video) return w.__cloudPhoneOrigGetUserMedia!(constraints);
 
-        const rawStream = rawCameraRef.current;
-        const rawTrack = rawStream?.getVideoTracks()[0];
-        if (!rawStream || !rawTrack || rawTrack.readyState === "ended") {
-          throw new DOMException("Raw camera stream is not ready for SDK injection", "NotReadableError");
+        const canvasStream = canvasCameraRef.current;
+        const canvasTrack = canvasStream?.getVideoTracks()[0];
+        if (!canvasStream || !canvasTrack || canvasTrack.readyState === "ended") {
+          throw new DOMException("Canvas stream is not ready for SDK injection", "NotReadableError");
         }
 
-        const sdkStream = new MediaStream([rawTrack.clone()]);
-        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-test";
-        const injectedSettings = rawTrack.getSettings();
-        console.log("[CloudPhone] SDK getUserMedia intercepted; returning RAW camera stream (TEST MODE)", {
+        const sdkStream = new MediaStream([canvasTrack.clone()]);
+        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
+        const injectedSettings = canvasTrack.getSettings();
+        console.log("[CloudPhone] SDK getUserMedia intercepted; returning CANVAS captureStream", {
           constraints,
-          source: "raw-camera-test",
+          source: "canvas-captureStream",
           settings: injectedSettings,
         });
         setInjectionTrace(
-          `SDK getUserMedia: RAW camera ${injectedSettings.width ?? "?"}×${injectedSettings.height ?? "?"} (TEST MODE)`,
+          `SDK getUserMedia: CANVAS ${injectedSettings.width ?? "?"}×${injectedSettings.height ?? "?"}`,
         );
-        setStatus("TEST MODE: raw camera, no canvas");
+        setStatus("Streaming canvas (portrait) to cloud phone");
         return sdkStream;
       };
-      w.__cloudPhoneGumPatchVersion = "canvas-v3-raw-test";
+      w.__cloudPhoneGumPatchVersion = "canvas-v4-visible";
     }
 
     if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
