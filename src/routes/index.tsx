@@ -35,6 +35,11 @@ function Index() {
   };
 
   const startCloudPhone = async () => {
+    if (engineRef.current) {
+      setStatus("Releasing previous session…");
+      stopCloudPhone();
+      await new Promise((r) => setTimeout(r, 2000));
+    }
     setStatus("Requesting token…");
     setInjectionTrace(null);
     cleanupCameraPipeline();
