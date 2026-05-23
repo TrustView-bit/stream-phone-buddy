@@ -173,8 +173,10 @@ function Index() {
       ctx.fillStyle = "#ff0000";
       ctx.fillRect(0, 0, 96, 96);
       frameCount++;
-      if (frameCount % 30 === 0) {
-        setVideoDebug(`video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} · frames=${frameCount}`);
+      if (frameCount % 10 === 0) {
+        setVideoDebug(
+          `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused} frames=${frameCount}${playError ? ` playErr=${playError}` : ""}`,
+        );
       }
       drawRafRef.current = requestAnimationFrame(draw);
     };
