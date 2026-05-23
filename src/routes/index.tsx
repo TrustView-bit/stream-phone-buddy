@@ -38,8 +38,10 @@ function Index() {
     setStatus("Requesting token…");
     setInjectionTrace(null);
     cleanupCameraPipeline();
+    const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
+    const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
-      const raw = await navigator.mediaDevices.getUserMedia({
+      const raw = await getRawUserMedia({
         video: {
           width: { ideal: 720 },
           height: { ideal: 1280 },
@@ -211,7 +213,14 @@ function Index() {
         },
         onConnectSuccess: async () => {
           setStatus("Connected");
-          engineRef.current!.startMediaStream(2);
+          try {
+            await engineRef.current!.startMediaStream(2);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatus("Camera injection error: " + message);
+            setInjectionTrace((prev) => `${prev ?? "SDK camera injection attempted"}\nError: ${message}`);
+            return;
+          }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
             setStatus("Connected · camera: " + (s as any).status);
@@ -237,6 +246,7 @@ function Index() {
       engineRef.current.stop();
       engineRef.current = null;
       setStatus("Idle");
+      cleanupCameraPipeline();
     }
   };
 
