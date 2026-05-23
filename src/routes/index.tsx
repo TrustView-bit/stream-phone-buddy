@@ -36,8 +36,9 @@ function Index() {
       setStatus(`Error: ${error.message}`);
       return;
     }
-    setStatus(`Response: ${JSON.stringify(data)}`);
+    setStatus(JSON.stringify(data, null, 2));
   };
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
