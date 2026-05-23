@@ -84,8 +84,8 @@ function Index() {
 
         <div
           id="phoneBox"
-          className="w-full overflow-hidden rounded-xl bg-neutral-800 shadow-lg"
-          style={{ aspectRatio: "9 / 16", maxHeight: "80vh" }}
+          className="mx-auto overflow-hidden rounded-xl bg-neutral-800 shadow-lg"
+          style={{ aspectRatio: "9 / 16", maxWidth: "100%", maxHeight: "80vh", width: "auto", height: "auto" }}
         />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
