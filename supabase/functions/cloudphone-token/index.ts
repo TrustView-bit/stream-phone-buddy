@@ -59,7 +59,7 @@ async function signGet(sk: string, ak: string) {
   };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
   try {
     const ak = Deno.env.get("VMOS_AK")!;
