@@ -12,7 +12,6 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const [agreed, setAgreed] = useState(false);
   const [status, setStatus] = useState("Idle");
 
   const handleStart = () => {
@@ -36,21 +35,6 @@ function Index() {
           Cloud Phone Viewer
         </h1>
 
-        <div className="w-full rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-900">
-          <p>
-            When you press Start, this app will access your webcam and stream it into a
-            remote Android phone. Continue only if you agree.
-          </p>
-          <label className="mt-3 flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="h-4 w-4 rounded border-yellow-400 accent-yellow-600"
-            />
-            <span>I understand and agree</span>
-          </label>
-        </div>
 
         <div
           id="phoneBox"
@@ -61,8 +45,7 @@ function Index() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={handleStart}
-            disabled={!agreed}
-            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Start
           </button>
