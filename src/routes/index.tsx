@@ -145,7 +145,24 @@ function Index() {
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
+    // Mobile browsers (esp. iOS Safari) require canvas in DOM for captureStream to update.
+    canvas.style.position = "absolute";
+    canvas.style.left = "0";
+    canvas.style.top = "0";
+    canvas.style.width = "1px";
+    canvas.style.height = "1px";
+    canvas.style.opacity = "0.01";
+    canvas.style.pointerEvents = "none";
+    canvas.style.zIndex = "-1";
+    document.body.appendChild(canvas);
+    (window as any).__cloudPhoneDrawCanvas = canvas;
     const ctx = canvas.getContext("2d")!;
+
+    // Paint one frame BEFORE captureStream so the captured track has content immediately.
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(0, 0, 96, 96);
 
     let frameCount = 0;
     const draw = () => {
@@ -174,8 +191,9 @@ function Index() {
       ctx.fillRect(0, 0, 96, 96);
       frameCount++;
       if (frameCount % 10 === 0) {
+        const sameCanvas = (window as any).__cloudPhoneDrawCanvas === canvas;
         setVideoDebug(
-          `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused} frames=${frameCount}${playError ? ` playErr=${playError}` : ""}`,
+          `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused} frames=${frameCount} sameCanvas=${sameCanvas}${playError ? ` playErr=${playError}` : ""}`,
         );
       }
       drawRafRef.current = requestAnimationFrame(draw);
@@ -183,6 +201,7 @@ function Index() {
     draw();
 
     const portrait = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+    console.log("[CloudPhone] captureStream called on canvas; same as draw canvas?", (window as any).__cloudPhoneDrawCanvas === canvas);
     (portrait as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
     const portraitTrack = portrait.getVideoTracks()[0];
     (portraitTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
