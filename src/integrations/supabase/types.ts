@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          consent_text: string | null
+          id: string
+          pad_code: string | null
+          quality: string
+        }
+        Insert: {
+          consent_text?: string | null
+          id: string
+          pad_code?: string | null
+          quality?: string
+        }
+        Update: {
+          consent_text?: string | null
+          id?: string
+          pad_code?: string | null
+          quality?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
