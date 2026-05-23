@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const API_HOST = "api.vmoscloud.com";
 const API_BASE = "https://api.vmoscloud.com";
-const TOKEN_PATH = "/vcpcloud/api/padApi/stsToken";
+const TOKEN_PATH = "/vcpcloud/api/padApi/stsTokenByPadCode";
 const SERVICE = "armcloud-paas";
 const CONTENT_TYPE = "application/json;charset=UTF-8";
 const SIGNED_HEADERS = "content-type;host;x-content-sha256;x-date";
