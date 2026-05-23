@@ -298,6 +298,11 @@ function Index() {
             Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
           </div>
         )}
+        {injectionTrace && (
+          <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
+            {injectionTrace}
+          </pre>
+        )}
       </div>
     </div>
   );
