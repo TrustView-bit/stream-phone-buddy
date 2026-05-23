@@ -211,6 +211,11 @@ function Index() {
             Camera: {camSettings.width}×{camSettings.height} (aspect {camSettings.aspectRatio?.toFixed(3) ?? "n/a"})
           </div>
         )}
+        {canvasSettings && (
+          <div className="w-full text-center text-xs text-muted-foreground">
+            Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
+          </div>
+        )}
       </div>
     </div>
   );
