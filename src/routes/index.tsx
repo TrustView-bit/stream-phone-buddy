@@ -260,14 +260,22 @@ function Index() {
           setStatus("Connect failed: " + msg + " · releasing session");
           stopCloudPhoneRef.current();
         },
-        onDisconnect: (info?: { msg?: string; code?: number | string }) => {
-          setStatus("Disconnected: " + (info?.msg ?? info?.code ?? "unknown") + " · releasing session");
+        onConnectionStateChanged: (payload: { state: number }) => {
+          // state 4/5/6 typically indicate failed/closed/disconnected in WebRTC-ish state machines
+          if (payload?.state >= 4) {
+            setStatus("Connection state " + payload.state + " · releasing session");
+            stopCloudPhoneRef.current();
+          }
+        },
+        onErrorMessage: (payload: { msg?: string; code?: number | string }) => {
+          setStatus("Error: " + (payload?.msg ?? payload?.code ?? "unknown") + " · releasing session");
           stopCloudPhoneRef.current();
         },
-        onError: (info?: { msg?: string; code?: number | string }) => {
-          setStatus("Error: " + (info?.msg ?? info?.code ?? "unknown") + " · releasing session");
+        onUserLeave: (event: { reason?: string | number }) => {
+          setStatus("Session ended: " + (event?.reason ?? "user leave") + " · releasing");
           stopCloudPhoneRef.current();
         },
+
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
           if (b) {
