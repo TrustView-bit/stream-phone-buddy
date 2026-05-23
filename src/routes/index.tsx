@@ -35,7 +35,6 @@ function Index() {
           Cloud Phone Viewer
         </h1>
 
-
         <div
           id="phoneBox"
           className="w-full overflow-hidden rounded-xl bg-neutral-800 shadow-lg"
