@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -26,6 +27,16 @@ function Index() {
 
   const handlePlay = () => {
     console.log("Play pressed");
+  };
+
+  const handleTestToken = async () => {
+    setStatus("Calling cloudphone-token...");
+    const { data, error } = await supabase.functions.invoke("cloudphone-token");
+    if (error) {
+      setStatus(`Error: ${error.message}`);
+      return;
+    }
+    setStatus(`Response: ${JSON.stringify(data)}`);
   };
 
   return (
@@ -61,6 +72,12 @@ function Index() {
             className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"
           >
             Tap to play
+          </button>
+          <button
+            onClick={handleTestToken}
+            className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            Test token function
           </button>
         </div>
 
