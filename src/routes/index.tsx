@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-// @ts-expect-error - armcloud-rtc has no bundled types
 import { ArmcloudEngine } from "armcloud-rtc";
 
 export const Route = createFileRoute("/")({
