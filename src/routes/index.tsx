@@ -159,7 +159,7 @@ function Index() {
       w.__cloudPhoneGumPatchVersion = "canvas-v3-red-marker";
     }
 
-    if (!w.__cloudPhoneAddTrackPatched && window.RTCPeerConnection?.prototype?.addTrack) {
+    if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
       w.__cloudPhoneOrigAddTrack = RTCPeerConnection.prototype.addTrack;
       RTCPeerConnection.prototype.addTrack = function patchedAddTrack(track: MediaStreamTrack, ...streams: MediaStream[]) {
         const source = (track as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
