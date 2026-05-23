@@ -81,7 +81,10 @@ Deno.serve(async (req) => {
     const headers = await signPost(sk, ak, body);
     const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "POST", headers, body });
     const data = await r.json();
-    const token = data?.data?.token ?? data?.token ?? data;
+    let token = data?.data?.token ?? data?.token ?? "";
+    if (typeof token === "string" && token.includes(",")) {
+      token = token.split(",")[0];   // keep only the UUID, drop the ,padCode suffix
+    }
     return new Response(JSON.stringify({ token, padCode, raw: data }), {
       headers: { ...cors, "content-type": "application/json" },
     });
