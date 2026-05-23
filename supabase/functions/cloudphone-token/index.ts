@@ -7,6 +7,11 @@ const TOKEN_PATH = "/vcpcloud/api/padApi/stsToken";
 const SERVICE = "armcloud-paas";
 const CONTENT_TYPE = "application/json;charset=UTF-8";
 const SIGNED_HEADERS = "content-type;host;x-content-sha256;x-date";
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+};
 
 const enc = new TextEncoder();
 const toHex = (buf: ArrayBuffer | Uint8Array) =>
@@ -60,7 +65,9 @@ async function signGet(sk: string, ak: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: cors });
+  }
   try {
     const ak = Deno.env.get("VMOS_AK")!;
     const sk = Deno.env.get("VMOS_SK")!;
@@ -77,22 +84,12 @@ Deno.serve(async (req) => {
     const data = await r.json();
     const token = data?.data?.token ?? data?.token ?? data;
     return new Response(JSON.stringify({ token, padCode, raw: data }), {
-      headers: { ...cors(), "content-type": "application/json" },
+      headers: { ...cors, "content-type": "application/json" },
     });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500,
-      headers: { ...cors(), "content-type": "application/json" },
+      headers: { ...cors, "content-type": "application/json" },
     });
   }
 });
-function cors() {
-  return {
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
-    "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-max-age": "86400",
-  };
-}
-
-}
