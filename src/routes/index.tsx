@@ -82,7 +82,7 @@ function Index() {
           </button>
         </div>
 
-        <p className="text-sm text-muted-foreground">{status}</p>
+        <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">{status}</pre>
       </div>
     </div>
   );
