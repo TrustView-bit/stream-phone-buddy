@@ -34,6 +34,14 @@ function Index() {
     rawCameraRef.current?.getTracks().forEach((track) => track.stop());
     canvasCameraRef.current = null;
     rawCameraRef.current = null;
+    if (hiddenVideoRef.current) {
+      try {
+        hiddenVideoRef.current.pause();
+        hiddenVideoRef.current.srcObject = null;
+        hiddenVideoRef.current.remove();
+      } catch (_) {}
+      hiddenVideoRef.current = null;
+    }
   };
 
   const startCloudPhone = async () => {
