@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
-  const engineRef = useRef<any>(null);
+  const engineRef = useRef<ArmcloudEngine | null>(null);
 
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
@@ -84,8 +84,7 @@ function Index() {
 
         <div
           id="phoneBox"
-          className="mx-auto w-screen overflow-hidden bg-muted shadow-lg sm:w-[360px] sm:rounded-xl"
-          style={{ aspectRatio: "9 / 16", maxWidth: "100dvw", maxHeight: "80vh" }}
+          className="mx-auto aspect-[9/16] w-screen max-w-[100dvw] overflow-hidden bg-muted shadow-lg sm:w-[360px] sm:rounded-xl"
         />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
@@ -110,7 +109,9 @@ function Index() {
           </button>
         </div>
 
-        <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">{status}</pre>
+        <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
+          {status}
+        </pre>
       </div>
     </div>
   );
