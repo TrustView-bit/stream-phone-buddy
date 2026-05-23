@@ -77,9 +77,9 @@ Deno.serve(async (req) => {
     const { data: setting } = await supa
       .from("app_settings").select("pad_code").eq("id", "default").single();
     const padCode = setting?.pad_code ?? "APP63U6GYP7UDGQV";
-
-    const headers = await signGet(sk, ak);
-    const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "GET", headers });
+    const body = JSON.stringify({ padCode });
+    const headers = await signPost(sk, ak, body);
+    const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "POST", headers, body });
     const data = await r.json();
     const token = data?.data?.token ?? data?.token ?? data;
     return new Response(JSON.stringify({ token, padCode, raw: data }), {
