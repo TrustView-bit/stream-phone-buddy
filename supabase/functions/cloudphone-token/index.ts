@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 
 const API_HOST = "api.vmoscloud.com";
 const API_BASE = "https://api.vmoscloud.com";
@@ -59,7 +59,7 @@ async function signGet(sk: string, ak: string) {
   };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors() });
   try {
     const ak = Deno.env.get("VMOS_AK")!;
