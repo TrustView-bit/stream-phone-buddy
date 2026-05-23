@@ -16,6 +16,7 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [status, setStatus] = useState("Idle");
   const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
+  const [canvasSettings, setCanvasSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
 
   const startCloudPhone = async () => {
@@ -37,63 +38,67 @@ function Index() {
       return;
     }
 
-    // Mirror the webcam horizontally before injection (SDK exposes no mirror option).
-    // Wrap getUserMedia so the SDK receives a horizontally-flipped MediaStream,
-    // and force portrait constraints so the injected feed matches the phone camera.
+    // Wrap getUserMedia so the SDK receives a portrait 720x1280 stream drawn via
+    // canvas "cover" logic from the (often landscape) camera, with horizontal mirror.
     const w = window as unknown as { __gumPatched?: boolean };
     if (!w.__gumPatched) {
       const md = navigator.mediaDevices;
       const orig = md.getUserMedia.bind(md);
       md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
-        let merged = constraints;
-        if (constraints?.video) {
-          const v = constraints.video === true ? {} : constraints.video;
-          merged = {
-            ...constraints,
-            video: {
-              ...v,
-              width: { ideal: 720 },
-              height: { ideal: 1280 },
-              aspectRatio: { ideal: 9 / 16 },
-            },
-          };
-        }
-        const stream = await orig(merged);
+        const stream = await orig(constraints);
         if (!constraints?.video) return stream;
 
         const track = stream.getVideoTracks()[0];
         if (!track) return stream;
-        const settings = track.getSettings();
         const video = document.createElement("video");
         video.srcObject = stream;
         video.muted = true;
         video.playsInline = true;
         await video.play().catch(() => {});
-        const width = settings.width ?? video.videoWidth ?? 640;
-        const height = settings.height ?? video.videoHeight ?? 480;
+
+        const CANVAS_W = 720;
+        const CANVAS_H = 1280;
         const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = CANVAS_W;
+        canvas.height = CANVAS_H;
         const ctx = canvas.getContext("2d")!;
-        const fps = settings.frameRate ?? 30;
         let raf = 0;
         const draw = () => {
-          ctx.save();
-          ctx.translate(width, 0);
-          ctx.scale(-1, 1);
-          ctx.drawImage(video, 0, 0, width, height);
-          ctx.restore();
+          const sw = video.videoWidth;
+          const sh = video.videoHeight;
+          if (sw && sh) {
+            // "cover": scale so source fills canvas, crop overflow, center.
+            const scale = Math.max(CANVAS_W / sw, CANVAS_H / sh);
+            const dw = sw * scale;
+            const dh = sh * scale;
+            const dx = (CANVAS_W - dw) / 2;
+            const dy = (CANVAS_H - dh) / 2;
+            ctx.save();
+            // Mirror horizontally.
+            ctx.translate(CANVAS_W, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, 0, 0, sw, sh, CANVAS_W - dx - dw, dy, dw, dh);
+            ctx.restore();
+          }
           raf = requestAnimationFrame(draw);
         };
         draw();
-        const flipped = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(fps);
+        const portrait = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
+        // Report canvas stream dimensions to the UI once available.
+        setTimeout(() => {
+          const cs = portrait.getVideoTracks()[0]?.getSettings();
+          setCanvasSettings({
+            width: cs?.width ?? CANVAS_W,
+            height: cs?.height ?? CANVAS_H,
+            aspectRatio: cs?.aspectRatio ?? CANVAS_W / CANVAS_H,
+          });
+        }, 250);
         track.addEventListener("ended", () => {
           cancelAnimationFrame(raf);
-          flipped.getTracks().forEach((t) => t.stop());
+          portrait.getTracks().forEach((t) => t.stop());
         });
-        // Keep original audio tracks if present
-        stream.getAudioTracks().forEach((t) => flipped.addTrack(t));
-        return flipped;
+        stream.getAudioTracks().forEach((t) => portrait.addTrack(t));
+        return portrait;
       };
       w.__gumPatched = true;
     }
@@ -204,6 +209,11 @@ function Index() {
         {camSettings && (
           <div className="w-full text-center text-xs text-muted-foreground">
             Camera: {camSettings.width}×{camSettings.height} (aspect {camSettings.aspectRatio?.toFixed(3) ?? "n/a"})
+          </div>
+        )}
+        {canvasSettings && (
+          <div className="w-full text-center text-xs text-muted-foreground">
+            Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
           </div>
         )}
       </div>
