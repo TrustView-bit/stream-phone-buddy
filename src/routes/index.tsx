@@ -146,14 +146,17 @@ function Index() {
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
     // Mobile browsers (esp. iOS Safari) require canvas in DOM for captureStream to update.
-    canvas.style.position = "absolute";
-    canvas.style.left = "0";
-    canvas.style.top = "0";
-    canvas.style.width = "1px";
-    canvas.style.height = "1px";
-    canvas.style.opacity = "0.01";
+    // Render the canvas visibly at real size so mobile browsers composite and capture it.
+    canvas.style.position = "fixed";
+    canvas.style.right = "8px";
+    canvas.style.bottom = "8px";
+    canvas.style.width = "180px";
+    canvas.style.height = "320px";
+    canvas.style.opacity = "1";
+    canvas.style.border = "2px solid #ff0000";
+    canvas.style.background = "#000";
     canvas.style.pointerEvents = "none";
-    canvas.style.zIndex = "-1";
+    canvas.style.zIndex = "9999";
     document.body.appendChild(canvas);
     (window as any).__cloudPhoneDrawCanvas = canvas;
     const ctx = canvas.getContext("2d")!;
