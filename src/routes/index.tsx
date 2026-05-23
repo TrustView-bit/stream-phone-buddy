@@ -256,7 +256,18 @@ function Index() {
             setStatus("Connected · camera status unknown");
           }
         },
-        onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
+        onConnectFail: ({ msg }: { msg?: string }) => {
+          setStatus("Connect failed: " + msg + " · releasing session");
+          stopCloudPhoneRef.current();
+        },
+        onDisconnect: (info?: { msg?: string; code?: number | string }) => {
+          setStatus("Disconnected: " + (info?.msg ?? info?.code ?? "unknown") + " · releasing session");
+          stopCloudPhoneRef.current();
+        },
+        onError: (info?: { msg?: string; code?: number | string }) => {
+          setStatus("Error: " + (info?.msg ?? info?.code ?? "unknown") + " · releasing session");
+          stopCloudPhoneRef.current();
+        },
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
           if (b) {
@@ -268,6 +279,7 @@ function Index() {
       },
     });
   };
+
 
   const stopCloudPhone = () => {
     try {
