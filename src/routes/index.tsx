@@ -77,15 +77,15 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-8">
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-0 py-8 sm:px-4">
         <h1 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
           Cloud Phone Viewer
         </h1>
 
         <div
           id="phoneBox"
-          className="mx-auto overflow-hidden rounded-xl bg-neutral-800 shadow-lg"
-          style={{ aspectRatio: "9 / 16", width: "min(360px, 100%)", maxHeight: "80vh" }}
+          className="mx-auto w-screen overflow-hidden bg-muted shadow-lg sm:w-[360px] sm:rounded-xl"
+          style={{ aspectRatio: "9 / 16", maxWidth: "100dvw", maxHeight: "80vh" }}
         />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
