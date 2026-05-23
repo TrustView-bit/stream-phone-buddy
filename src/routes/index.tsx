@@ -58,8 +58,9 @@ function Index() {
     try {
       const raw = await getRawUserMedia({
         video: {
-          width: { ideal: 720 },
-          height: { ideal: 1280 },
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1080 },
+          height: { ideal: 1920 },
           aspectRatio: { ideal: 9 / 16 },
         },
       });
