@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
-  const engineRef = useRef<any>(null);
+  const engineRef = useRef<ArmcloudEngine | null>(null);
 
   const startCloudPhone = async () => {
     setStatus("Requesting token…");
@@ -51,7 +51,7 @@ function Index() {
             setStatus("This browser does not support WebRTC");
             return;
           }
-          engineRef.current.start();
+          engineRef.current?.start();
         },
         onConnectSuccess: () => setStatus("Connected"),
         onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
@@ -77,15 +77,14 @@ function Index() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-8">
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-0 py-8 sm:px-4">
         <h1 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
           Cloud Phone Viewer
         </h1>
 
         <div
           id="phoneBox"
-          className="mx-auto overflow-hidden rounded-xl bg-neutral-800 shadow-lg"
-          style={{ aspectRatio: "9 / 16", width: "min(360px, 100%)", maxHeight: "80vh" }}
+          className="mx-auto aspect-[9/16] w-screen max-w-[100dvw] overflow-hidden bg-muted shadow-lg sm:w-[360px] sm:rounded-xl"
         />
 
         <div className="flex flex-wrap items-center justify-center gap-3">
@@ -110,7 +109,9 @@ function Index() {
           </button>
         </div>
 
-        <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">{status}</pre>
+        <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
+          {status}
+        </pre>
       </div>
     </div>
   );
