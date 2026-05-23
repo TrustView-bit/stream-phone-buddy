@@ -59,7 +59,16 @@ function Index() {
           }
           engineRef.current?.start();
         },
-        onConnectSuccess: () => setStatus("Connected"),
+        onConnectSuccess: async () => {
+          setStatus("Connected");
+          engineRef.current!.startMediaStream(2);
+          try {
+            const s = await engineRef.current!.getInjectStreamStatus("camera", 5000);
+            setStatus("Connected · camera: " + s.status);
+          } catch (_) {
+            setStatus("Connected · camera status unknown");
+          }
+        },
         onConnectFail: ({ msg }: { msg?: string }) => setStatus("Connect failed: " + msg),
         onAutoplayFailed: () => {
           const b = document.getElementById("playBtn");
