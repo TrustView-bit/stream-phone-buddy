@@ -89,7 +89,10 @@ Deno.serve(async (req) => {
 function cors() {
   return {
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, authorization",
+    "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
     "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-max-age": "86400",
   };
+}
+
 }
