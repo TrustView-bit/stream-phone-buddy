@@ -18,6 +18,8 @@ function Index() {
   const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const [canvasSettings, setCanvasSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
   const [injectionTrace, setInjectionTrace] = useState<string | null>(null);
+  const [videoDebug, setVideoDebug] = useState<string>("video: not started");
+  const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
   const rawCameraRef = useRef<MediaStream | null>(null);
   const canvasCameraRef = useRef<MediaStream | null>(null);
@@ -32,6 +34,14 @@ function Index() {
     rawCameraRef.current?.getTracks().forEach((track) => track.stop());
     canvasCameraRef.current = null;
     rawCameraRef.current = null;
+    if (hiddenVideoRef.current) {
+      try {
+        hiddenVideoRef.current.pause();
+        hiddenVideoRef.current.srcObject = null;
+        hiddenVideoRef.current.remove();
+      } catch (_) {}
+      hiddenVideoRef.current = null;
+    }
   };
 
   const startCloudPhone = async () => {
@@ -77,8 +87,46 @@ function Index() {
     const video = document.createElement("video");
     video.srcObject = rawStream;
     video.muted = true;
+    video.defaultMuted = true;
+    video.autoplay = true;
     video.playsInline = true;
-    await video.play().catch(() => {});
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
+    video.setAttribute("muted", "");
+    video.setAttribute("autoplay", "");
+    // Must be in the DOM (even if invisible/0-size) for reliable mobile playback.
+    video.style.position = "fixed";
+    video.style.left = "-9999px";
+    video.style.top = "0";
+    video.style.width = "2px";
+    video.style.height = "2px";
+    video.style.opacity = "0";
+    video.style.pointerEvents = "none";
+    document.body.appendChild(video);
+    hiddenVideoRef.current = video;
+
+    setVideoDebug(`video: created, readyState=${video.readyState}`);
+
+    const waitForData = new Promise<void>((resolve) => {
+      if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
+      const onReady = () => {
+        if (video.videoWidth > 0) {
+          video.removeEventListener("loadeddata", onReady);
+          video.removeEventListener("loadedmetadata", onReady);
+          resolve();
+        }
+      };
+      video.addEventListener("loadeddata", onReady);
+      video.addEventListener("loadedmetadata", onReady);
+    });
+
+    try {
+      await video.play();
+    } catch (e) {
+      console.warn("[CloudPhone] video.play() rejected", e);
+    }
+    await waitForData;
+    setVideoDebug(`video: playing readyState=${video.readyState} ${video.videoWidth}×${video.videoHeight}`);
 
     const CANVAS_W = 720;
     const CANVAS_H = 1280;
@@ -87,28 +135,35 @@ function Index() {
     canvas.height = CANVAS_H;
     const ctx = canvas.getContext("2d")!;
 
+    let frameCount = 0;
     const draw = () => {
-      const sw = video.videoWidth || rawTrack.getSettings().width || CANVAS_W;
-      const sh = video.videoHeight || rawTrack.getSettings().height || CANVAS_H;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (sw && sh && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        // "cover": always fill the whole portrait canvas, cropping overflow.
+      const sw = video.videoWidth;
+      const sh = video.videoHeight;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (sw && sh && video.readyState >= 2) {
         const scale = Math.max(canvas.width / sw, canvas.height / sh);
         const dw = sw * scale;
         const dh = sh * scale;
         const dx = (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
         ctx.save();
-        // Un-mirror the front-camera source before captureStream() sees it.
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
-        ctx.drawImage(video, dx, dy, dw, dh);
+        try {
+          ctx.drawImage(video, dx, dy, dw, dh);
+        } catch (e) {
+          console.warn("[CloudPhone] drawImage failed", e);
+        }
         ctx.restore();
       }
-      // Temporary proof marker: if this appears in the cloud phone camera,
-      // the SDK is publishing this canvas stream, not the raw camera stream.
+      // Red diagnostic square — confirms RAF loop is running.
       ctx.fillStyle = "#ff0000";
       ctx.fillRect(0, 0, 96, 96);
+      frameCount++;
+      if (frameCount % 30 === 0) {
+        setVideoDebug(`video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} · frames=${frameCount}`);
+      }
       drawRafRef.current = requestAnimationFrame(draw);
     };
     draw();
@@ -374,6 +429,9 @@ function Index() {
             Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
           </div>
         )}
+        <div className="w-full text-center text-xs text-muted-foreground">
+          {videoDebug}
+        </div>
         {injectionTrace && (
           <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
             {injectionTrace}
