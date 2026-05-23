@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const API_HOST = "api.vmoscloud.com";
 const API_BASE = "https://api.vmoscloud.com";
-const TOKEN_PATH = "/vcpcloud/api/padApi/stsToken";
+const TOKEN_PATH = "/vcpcloud/api/padApi/stsTokenByPadCode";
 const SERVICE = "armcloud-paas";
 const CONTENT_TYPE = "application/json;charset=UTF-8";
 const SIGNED_HEADERS = "content-type;host;x-content-sha256;x-date";
@@ -35,12 +35,11 @@ function utcDate() {
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T` +
     `${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
 }
-async function signGet(sk: string, ak: string) {
-  const params = "";
+async function signPost(sk: string, ak: string, body: string) {
   const xDate = utcDate();
   const shortDate = xDate.substring(0, 8);
   const scope = `${shortDate}/${SERVICE}/request`;
-  const xContentSha256 = await sha256Hex(params);
+  const xContentSha256 = await sha256Hex(body);
   const canonical =
     `host:${API_HOST}\n` +
     `x-date:${xDate}\n` +
@@ -78,9 +77,9 @@ Deno.serve(async (req) => {
     const { data: setting } = await supa
       .from("app_settings").select("pad_code").eq("id", "default").single();
     const padCode = setting?.pad_code ?? "APP63U6GYP7UDGQV";
-
-    const headers = await signGet(sk, ak);
-    const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "GET", headers });
+    const body = JSON.stringify({ padCode });
+    const headers = await signPost(sk, ak, body);
+    const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "POST", headers, body });
     const data = await r.json();
     const token = data?.data?.token ?? data?.token ?? data;
     return new Response(JSON.stringify({ token, padCode, raw: data }), {
