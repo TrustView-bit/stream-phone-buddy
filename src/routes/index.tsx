@@ -104,31 +104,41 @@ function Index() {
     video.style.display = "block";
     video.style.visibility = "visible";
     video.style.pointerEvents = "none";
+    video.style.zIndex = "-1";
     document.body.appendChild(video);
     hiddenVideoRef.current = video;
 
     setVideoDebug(`video: created, readyState=${video.readyState}`);
 
+    // Kick off play() inside the user-gesture-rooted call stack. Don't await yet,
+    // so awaiting doesn't break the gesture on mobile.
+    let playError: string | null = null;
+    const playPromise = video.play().catch((e) => {
+      playError = e instanceof Error ? e.message : String(e);
+      console.warn("[CloudPhone] video.play() rejected", e);
+      setVideoDebug(`video: play() error: ${playError}`);
+    });
+
     const waitForData = new Promise<void>((resolve) => {
       if (video.readyState >= 2 && video.videoWidth > 0) return resolve();
       const onReady = () => {
-        if (video.videoWidth > 0) {
+        if (video.readyState >= 2 && video.videoWidth > 0) {
           video.removeEventListener("loadeddata", onReady);
           video.removeEventListener("loadedmetadata", onReady);
+          video.removeEventListener("canplay", onReady);
           resolve();
         }
       };
       video.addEventListener("loadeddata", onReady);
       video.addEventListener("loadedmetadata", onReady);
+      video.addEventListener("canplay", onReady);
     });
 
-    try {
-      await video.play();
-    } catch (e) {
-      console.warn("[CloudPhone] video.play() rejected", e);
-    }
+    await playPromise;
     await waitForData;
-    setVideoDebug(`video: playing readyState=${video.readyState} ${video.videoWidth}×${video.videoHeight}`);
+    setVideoDebug(
+      `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused}${playError ? ` playErr=${playError}` : ""}`,
+    );
 
     const CANVAS_W = 720;
     const CANVAS_H = 1280;
@@ -163,8 +173,10 @@ function Index() {
       ctx.fillStyle = "#ff0000";
       ctx.fillRect(0, 0, 96, 96);
       frameCount++;
-      if (frameCount % 30 === 0) {
-        setVideoDebug(`video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} · frames=${frameCount}`);
+      if (frameCount % 10 === 0) {
+        setVideoDebug(
+          `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused} frames=${frameCount}${playError ? ` playErr=${playError}` : ""}`,
+        );
       }
       drawRafRef.current = requestAnimationFrame(draw);
     };
