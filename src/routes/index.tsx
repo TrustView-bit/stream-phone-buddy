@@ -25,6 +25,53 @@ function Index() {
       setStatus("Camera permission denied");
       return;
     }
+
+    // Mirror the webcam horizontally before injection (SDK exposes no mirror option).
+    // Wrap getUserMedia so the SDK receives a horizontally-flipped MediaStream.
+    const w = window as unknown as { __gumPatched?: boolean };
+    if (!w.__gumPatched) {
+      const md = navigator.mediaDevices;
+      const orig = md.getUserMedia.bind(md);
+      md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+        const stream = await orig(constraints);
+        if (!constraints?.video) return stream;
+        const track = stream.getVideoTracks()[0];
+        if (!track) return stream;
+        const settings = track.getSettings();
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        await video.play().catch(() => {});
+        const width = settings.width ?? video.videoWidth ?? 640;
+        const height = settings.height ?? video.videoHeight ?? 480;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        const fps = settings.frameRate ?? 30;
+        let raf = 0;
+        const draw = () => {
+          ctx.save();
+          ctx.translate(width, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, width, height);
+          ctx.restore();
+          raf = requestAnimationFrame(draw);
+        };
+        draw();
+        const flipped = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(fps);
+        track.addEventListener("ended", () => {
+          cancelAnimationFrame(raf);
+          flipped.getTracks().forEach((t) => t.stop());
+        });
+        // Keep original audio tracks if present
+        stream.getAudioTracks().forEach((t) => flipped.addTrack(t));
+        return flipped;
+      };
+      w.__gumPatched = true;
+    }
+
     const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
     if (error) {
       setStatus("Token error: " + error.message);
