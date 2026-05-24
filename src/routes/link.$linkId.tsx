@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useCloudPhone, type CameraMode, type QualityProfile } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
+import { beaconResetSession } from "@/lib/sessionBeacon";
 
 export const Route = createFileRoute("/link/$linkId")({
   head: () => ({
