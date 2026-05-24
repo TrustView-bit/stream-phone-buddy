@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useCloudPhone, getCloudPhoneEngine } from "@/hooks/useCloudPhone";
+import { useCloudPhone, type CameraMode } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -14,6 +14,7 @@ export const Route = createFileRoute("/")({
 });
 
 interface AppSettings {
+  camera_mode: CameraMode;
   required_camera: "back" | "front";
   quality_definition_id: number;
   quality_framerate_id: number;
@@ -22,6 +23,7 @@ interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
+  camera_mode: "dynamic",
   required_camera: "back",
   quality_definition_id: 17,
   quality_framerate_id: 6,
@@ -38,12 +40,13 @@ function Index() {
       try {
         const { data, error } = await supabase
           .from("app_settings")
-          .select("required_camera, quality_definition_id, quality_framerate_id, quality_bitrate_id, pad_code")
+          .select("camera_mode, required_camera, quality_definition_id, quality_framerate_id, quality_bitrate_id, pad_code")
           .eq("id", "default")
           .maybeSingle();
         if (error) throw error;
         if (data) {
           setSettings({
+            camera_mode: ((data as any).camera_mode as CameraMode) ?? "dynamic",
             required_camera: (data.required_camera as "back" | "front") ?? "back",
             quality_definition_id: data.quality_definition_id ?? 17,
             quality_framerate_id: data.quality_framerate_id ?? 6,
@@ -59,9 +62,16 @@ function Index() {
     })();
   }, []);
 
+  // Derive the initial required camera from camera_mode for locked modes.
+  const initialRequiredCamera: "back" | "front" =
+    settings.camera_mode === "locked_front" ? "front" :
+    settings.camera_mode === "locked_back" ? "back" :
+    settings.required_camera;
+
   const { status, start, stop } = useCloudPhone({
     mode: "injector",
-    requiredCamera: settings.required_camera,
+    cameraMode: settings.camera_mode,
+    requiredCamera: initialRequiredCamera,
     padCode: settings.pad_code ?? undefined,
     viewId: "phoneBox",
     definitionId: settings.quality_definition_id,
@@ -102,28 +112,6 @@ function Index() {
           >
             Tap to play
           </button>
-          {([
-            { label: "Sharp-5fps", definitionId: 17, framerateId: 6, bitrateId: 11 },
-            { label: "Motion-10fps", definitionId: 17, framerateId: 7, bitrateId: 11 },
-            { label: "Motion-15fps", definitionId: 17, framerateId: 8, bitrateId: 11 },
-            { label: "Balanced-720", definitionId: 15, framerateId: 8, bitrateId: 8 },
-          ] as const).map((cfg) => (
-            <button
-              key={cfg.label}
-              onClick={async () => {
-                const engine = getCloudPhoneEngine();
-                if (!engine) return;
-                try {
-                  await (engine as any).setStreamConfig({ definitionId: cfg.definitionId, framerateId: cfg.framerateId, bitrateId: cfg.bitrateId });
-                } catch (e) {
-                  console.warn("setStreamConfig error", e);
-                }
-              }}
-              className="rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent"
-            >
-              {cfg.label}
-            </button>
-          ))}
         </div>
 
         <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">

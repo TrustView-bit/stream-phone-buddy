@@ -3,10 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArmcloudEngine } from "armcloud-rtc";
 
 export type CloudPhoneMode = "injector" | "viewer";
+export type CameraMode = "dynamic" | "locked_back" | "locked_front";
+type Facing = "back" | "front";
 
 export interface UseCloudPhoneOptions {
   mode: CloudPhoneMode;
-  requiredCamera?: "back" | "front";
+  cameraMode?: CameraMode;
+  requiredCamera?: Facing;
   padCode?: string;
   viewId?: string;
   definitionId?: number;
@@ -23,6 +26,7 @@ export interface UseCloudPhoneResult {
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
   const {
     mode,
+    cameraMode = "dynamic",
     requiredCamera = "back",
     padCode: padCodeOverride,
     viewId = "phoneBox",
@@ -37,6 +41,20 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const rawCameraRef = useRef<MediaStream | null>(null);
   const canvasCameraRef = useRef<MediaStream | null>(null);
   const drawRafRef = useRef<number | null>(null);
+
+  // Live-updating facing for the draw loop's flip decision.
+  const currentFacingRef = useRef<Facing>("back");
+
+  // Live config so callbacks read latest values.
+  const cameraModeRef = useRef<CameraMode>(cameraMode);
+  cameraModeRef.current = cameraMode;
+  const requiredCameraRef = useRef<Facing>(requiredCamera);
+  requiredCameraRef.current = requiredCamera;
+
+  // Switch coordination
+  const switchInProgressRef = useRef(false);
+  const pendingSwitchRef = useRef<Facing | null>(null);
+  const lastSwitchAtRef = useRef(0);
 
   const cleanupCameraPipeline = () => {
     if (drawRafRef.current !== null) {
@@ -77,6 +95,151 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const stopRef = useRef(stop);
   stopRef.current = stop;
 
+  /**
+   * Acquire a raw camera MediaStream for the requested facing using strict
+   * device-label/facingMode matching. Returns null on failure. No fallback to
+   * the other camera — caller decides what to do.
+   */
+  const acquireCameraStream = async (facing: Facing): Promise<{ stream: MediaStream | null; error: string }> => {
+    const w = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
+    const getRawUserMedia = w.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+
+    let videoInputs: MediaDeviceInfo[] = [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoInputs = devices.filter((d) => d.kind === "videoinput");
+    } catch (e) {
+      console.warn("[CloudPhone] enumerateDevices failed", e);
+    }
+
+    const matchBack = (l: string) => {
+      const s = l.toLowerCase();
+      return /(back|rear|environment)/.test(s) && !/(front|user|face)/.test(s);
+    };
+    const matchFront = (l: string) => /(front|user|face)/.test(l.toLowerCase());
+    const matcher = facing === "back" ? matchBack : matchFront;
+    const matches = videoInputs.filter((d) => matcher(d.label));
+    const preferred = matches.find((d) => /(main|\b0\b)/i.test(d.label)) ?? matches[0];
+
+    let stream: MediaStream | null = null;
+    let error = "";
+
+    if (preferred) {
+      try {
+        stream = await getRawUserMedia({
+          video: {
+            deviceId: { exact: preferred.deviceId },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
+        });
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        error = `deviceId exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+        console.warn("[CloudPhone]", error);
+      }
+    }
+
+    if (!stream) {
+      try {
+        stream = await getRawUserMedia({
+          video: {
+            facingMode: { exact: facing === "back" ? "environment" : "user" },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+          },
+        });
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        error += ` | facingMode exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+      }
+    }
+
+    if (stream) {
+      const track = stream.getVideoTracks()[0];
+      try {
+        const caps = track.getCapabilities?.() ?? {};
+        const maxW = caps.width?.max;
+        const maxH = caps.height?.max;
+        if (maxW && maxH) {
+          try {
+            await track.applyConstraints({ width: { ideal: maxW }, height: { ideal: maxH } });
+          } catch (_) {}
+        }
+      } catch (_) {}
+      const s = track?.getSettings();
+      console.log(
+        `[CloudPhone] Camera acquired: ${facing} | ${track?.label ?? "(no label)"} | ${s?.width ?? "?"}×${s?.height ?? "?"} | facingMode=${s?.facingMode ?? "?"}`,
+      );
+    }
+
+    return { stream, error };
+  };
+
+  /**
+   * Live-swap the raw camera feeding the hidden video element. The canvas,
+   * canvas captureStream, hidden video element and engine connection stay
+   * alive; only the camera source changes.
+   */
+  const switchToCamera = async (target: Facing) => {
+    if (cameraModeRef.current !== "dynamic") return;
+    if (!hiddenVideoRef.current) return;
+    if (currentFacingRef.current === target && rawCameraRef.current?.getVideoTracks()[0]?.readyState === "live") {
+      return;
+    }
+
+    // Debounce / queue
+    const now = Date.now();
+    if (now - lastSwitchAtRef.current < 250) {
+      pendingSwitchRef.current = target;
+    }
+    if (switchInProgressRef.current) {
+      pendingSwitchRef.current = target;
+      return;
+    }
+
+    switchInProgressRef.current = true;
+    lastSwitchAtRef.current = Date.now();
+
+    try {
+      setStatus(`Switching camera → ${target}…`);
+      const { stream: newStream, error } = await acquireCameraStream(target);
+      if (!newStream) {
+        console.warn(`[CloudPhone] Failed to switch to ${target}, keeping current camera.`, error);
+        setStatus(`Camera switch to ${target} failed; keeping ${currentFacingRef.current}`);
+        return;
+      }
+
+      // Stop old raw tracks, keep canvas + captureStream + engine intact.
+      const oldStream = rawCameraRef.current;
+      try { oldStream?.getTracks().forEach((t) => t.stop()); } catch (_) {}
+
+      rawCameraRef.current = newStream;
+      const newTrack = newStream.getVideoTracks()[0];
+      (newTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
+
+      const video = hiddenVideoRef.current;
+      if (video) {
+        video.srcObject = newStream;
+        try { await video.play(); } catch (e) { console.warn("[CloudPhone] video.play() after switch rejected", e); }
+      }
+
+      currentFacingRef.current = target;
+      requiredCameraRef.current = target;
+      setStatus(`Camera switched: ${target}`);
+    } catch (e) {
+      console.warn("[CloudPhone] switchToCamera error", e);
+    } finally {
+      switchInProgressRef.current = false;
+      const pending = pendingSwitchRef.current;
+      pendingSwitchRef.current = null;
+      if (pending && pending !== currentFacingRef.current) {
+        // Process queued request
+        setTimeout(() => { void switchToCamera(pending); }, 0);
+      }
+    }
+  };
+
   const start = async () => {
     if (engineRef.current) {
       setStatus("Releasing previous session…");
@@ -85,85 +248,32 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     }
     setStatus("Requesting token…");
     cleanupCameraPipeline();
-    const REQUIRED_CAMERA: "back" | "front" = requiredCamera;
+
+    // Initial facing: locked modes force their value; dynamic mode starts with requiredCamera as seed.
+    const initialFacing: Facing =
+      cameraMode === "locked_back" ? "back" :
+      cameraMode === "locked_front" ? "front" :
+      requiredCamera;
+    currentFacingRef.current = initialFacing;
+    requiredCameraRef.current = initialFacing;
 
     if (mode === "injector") {
+      // Permission probe + label population
       const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
       const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-
-      let videoInputs: MediaDeviceInfo[] = [];
       try {
-        const temp = await getRawUserMedia({
-          video: { width: { ideal: 3840 }, height: { ideal: 2160 } },
-        });
-        temp.getTracks().forEach((t) => {
-          try { t.stop(); } catch (_) {}
-        });
+        const temp = await getRawUserMedia({ video: { width: { ideal: 3840 }, height: { ideal: 2160 } } });
+        temp.getTracks().forEach((t) => { try { t.stop(); } catch (_) {} });
         await new Promise((r) => setTimeout(r, 500));
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        videoInputs = devices.filter((d) => d.kind === "videoinput");
-        console.log("[CloudPhone] videoinputs:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
       } catch (e) {
         console.warn("[CloudPhone] initial permission probe failed", e);
         setStatus("Camera permission denied");
         return;
       }
 
-      const matchBack = (l: string) => {
-        const s = l.toLowerCase();
-        return /(back|rear|environment)/.test(s) && !/(front|user|face)/.test(s);
-      };
-      const matchFront = (l: string) => /(front|user|face)/.test(l.toLowerCase());
-      const matcher = REQUIRED_CAMERA === "back" ? matchBack : matchFront;
-      const matches = videoInputs.filter((d) => matcher(d.label));
-      const preferred = matches.find((d) => /(main|\b0\b)/i.test(d.label)) ?? matches[0];
-
-      let raw: MediaStream | null = null;
-      let acquireError = "";
-
-      if (preferred) {
-        try {
-          raw = await getRawUserMedia({
-            video: {
-              deviceId: { exact: preferred.deviceId },
-              width: { ideal: 3840 },
-              height: { ideal: 2160 },
-            },
-          });
-        } catch (e) {
-          const err = e as { name?: string; message?: string };
-          acquireError = `deviceId exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
-          console.warn("[CloudPhone]", acquireError);
-          try {
-            raw = await getRawUserMedia({
-              video: {
-                facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-                width: { ideal: 3840 },
-                height: { ideal: 2160 },
-              },
-            });
-          } catch (e2) {
-            const err2 = e2 as { name?: string; message?: string };
-            acquireError += ` | facingMode exact failed: ${err2?.name ?? "Error"}: ${err2?.message ?? String(e2)}`;
-          }
-        }
-      } else {
-        try {
-          raw = await getRawUserMedia({
-            video: {
-              facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-              width: { ideal: 3840 },
-              height: { ideal: 2160 },
-            },
-          });
-        } catch (e) {
-          const err = e as { name?: string; message?: string };
-          acquireError = `no label match; facingMode exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
-        }
-      }
-
+      const { stream: raw, error: acquireError } = await acquireCameraStream(initialFacing);
       if (!raw) {
-        const msg = `Required ${REQUIRED_CAMERA} camera not available`;
+        const msg = `Required ${initialFacing} camera not available`;
         console.warn("[CloudPhone]", msg, acquireError);
         setStatus(msg);
         return;
@@ -173,42 +283,12 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       const rawTrackInit = raw.getVideoTracks()[0];
       (rawTrackInit as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
 
-      let applyErrorInfo = "";
-      try {
-        const caps = rawTrackInit.getCapabilities?.() ?? {};
-        console.log("[CloudPhone] track capabilities (full):", JSON.stringify(caps, null, 2));
-        console.log("[CloudPhone] track capabilities (object):", caps);
-        const maxW = caps.width?.max;
-        const maxH = caps.height?.max;
-        if (maxW && maxH) {
-          try {
-            await rawTrackInit.applyConstraints({
-              width: { ideal: maxW },
-              height: { ideal: maxH },
-            });
-          } catch (e) {
-            const err = e as { name?: string; message?: string };
-            applyErrorInfo = `applyConstraints failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
-            console.warn("[CloudPhone]", applyErrorInfo);
-          }
-        }
-      } catch (e) {
-        console.warn("[CloudPhone] getCapabilities failed", e);
-      }
-
       const settings = rawTrackInit?.getSettings();
-      console.log("[CloudPhone] track settings (final):", JSON.stringify(settings, null, 2));
-      console.log("[CloudPhone] track settings (object):", settings);
       const finalW = settings?.width ?? 0;
       const finalH = settings?.height ?? 0;
-      const lowRes = finalW > 0 && finalW < 1280;
-      if (lowRes) {
+      if (finalW > 0 && finalW < 1280) {
         setStatus(`Low camera resolution: ${finalW}×${finalH} (hardware max)`);
       }
-      console.log(
-        `[CloudPhone] Camera acquired: ${REQUIRED_CAMERA} | ${rawTrackInit?.label ?? "(no label)"} | ` +
-        `${finalW || "?"}×${finalH || "?"} | facingMode=${settings?.facingMode ?? "?"}`
-      );
 
       const rawStream = rawCameraRef.current;
       const rawTrack = rawStream?.getVideoTracks()[0];
@@ -286,23 +366,28 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       const draw = () => {
-        const sw = video.videoWidth;
-        const sh = video.videoHeight;
+        const v = hiddenVideoRef.current;
+        if (!v) {
+          drawRafRef.current = requestAnimationFrame(draw);
+          return;
+        }
+        const sw = v.videoWidth;
+        const sh = v.videoHeight;
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        if (sw && sh && video.readyState >= 2) {
+        if (sw && sh && v.readyState >= 2) {
           const scale = Math.max(canvas.width / sw, canvas.height / sh);
           const dw = sw * scale;
           const dh = sh * scale;
           const dx = (canvas.width - dw) / 2;
           const dy = (canvas.height - dh) / 2;
           ctx.save();
-          if ((REQUIRED_CAMERA as string) === "front") {
+          if (currentFacingRef.current === "front") {
             ctx.translate(canvas.width, 0);
             ctx.scale(-1, 1);
           }
           try {
-            ctx.drawImage(video, dx, dy, dw, dh);
+            ctx.drawImage(v, dx, dy, dw, dh);
           } catch (e) {
             console.warn("[CloudPhone] drawImage failed", e);
           }
@@ -313,15 +398,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       draw();
 
       const portrait = (canvas as HTMLCanvasElement & { captureStream(fps?: number): MediaStream }).captureStream(30);
-      console.log("[CloudPhone] captureStream called on canvas; same as draw canvas?", (window as any).__cloudPhoneDrawCanvas === canvas);
       (portrait as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
       const portraitTrack = portrait.getVideoTracks()[0];
       (portraitTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
       canvasCameraRef.current = portrait;
-      const cs = portraitTrack?.getSettings();
-      console.log("[CloudPhone] canvas capture settings:", cs);
-
-      rawTrack.addEventListener("ended", cleanupCameraPipeline);
 
       const w = window as unknown as {
         __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia;
@@ -350,12 +430,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
           const sdkStream = new MediaStream([canvasTrack.clone()]);
           (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
-          const injectedSettings = canvasTrack.getSettings();
-          console.log("[CloudPhone] SDK getUserMedia intercepted; returning CANVAS captureStream", {
-            constraints,
-            source: "canvas-captureStream",
-            settings: injectedSettings,
-          });
           setStatus("Camera active");
           return sdkStream;
         };
@@ -365,9 +439,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
         w.__cloudPhoneOrigAddTrack = RTCPeerConnection.prototype.addTrack;
         RTCPeerConnection.prototype.addTrack = function patchedAddTrack(track: MediaStreamTrack, ...streams: MediaStream[]) {
-          const source = (track as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
-          const settings = track.getSettings?.();
-          console.log("[CloudPhone] RTCPeerConnection.addTrack", { kind: track.kind, source, settings });
           return w.__cloudPhoneOrigAddTrack!.call(this, track, ...streams);
         };
         w.__cloudPhoneAddTrackPatched = true;
@@ -379,11 +450,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           trackOrKind: MediaStreamTrack | string,
           init?: RTCRtpTransceiverInit,
         ) {
-          if (trackOrKind instanceof MediaStreamTrack) {
-            const source = (trackOrKind as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
-            const settings = trackOrKind.getSettings?.();
-            console.log("[CloudPhone] RTCPeerConnection.addTransceiver", { kind: trackOrKind.kind, source, settings });
-          }
           return w.__cloudPhoneOrigAddTransceiver!.call(this, trackOrKind, init);
         };
         w.__cloudPhoneAddTransceiverPatched = true;
@@ -438,14 +504,12 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
             }
             try {
               await (engineRef.current as any).setStreamConfig({ definitionId, framerateId, bitrateId });
-              console.log(`[CloudPhone] setStreamConfig applied: def=${definitionId} fr=${framerateId} br=${bitrateId}`);
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setStreamConfig error: " + m);
             }
             try {
               await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
-              console.log("[CloudPhone] setScreenResolution applied: 1080x1920 @480dpi");
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setScreenResolution error: " + m);
@@ -483,9 +547,15 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
             b.onclick = () => engineRef.current?.startPlay();
           }
         },
-        onMediaDevicesToggle: (stats) => {
+        onMediaDevicesToggle: (stats: { type?: string; enabled?: boolean; isFront?: boolean }) => {
           console.log("[CloudPhone] onMediaDevicesToggle", stats);
-          setStatus(`Cloud phone camera request: type=${stats.type} enabled=${stats.enabled} isFront=${stats.isFront}`);
+          // Locked modes: ignore entirely.
+          if (cameraModeRef.current !== "dynamic") return;
+          const t = stats?.type;
+          if (t !== "camera" && t !== "media") return;
+          if (stats?.enabled !== true) return;
+          const target: Facing = stats?.isFront ? "front" : "back";
+          void switchToCamera(target);
         },
         onAutoRecoveryTime: () => engineRef.current?.start(),
       },
@@ -508,7 +578,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     };
   }, []);
 
-  // Expose engine ref on window for the debug test buttons (preserves prior behavior).
   (window as any).__cloudPhoneEngineRef = engineRef;
 
   return { status, start, stop };
