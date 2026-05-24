@@ -100,10 +100,24 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         setStatus("Idle");
       }
       cleanupCameraPipeline();
+      // Restore getUserMedia if this injector instance patched it.
+      if (mode === "injector") {
+        const w = window as unknown as {
+          __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia;
+          __cloudPhoneGumPatchVersion?: string;
+        };
+        if (w.__cloudPhoneOrigGetUserMedia) {
+          try {
+            navigator.mediaDevices.getUserMedia = w.__cloudPhoneOrigGetUserMedia;
+          } catch (_) {}
+          w.__cloudPhoneGumPatchVersion = undefined;
+        }
+      }
     } catch (e) {
       console.warn("[CloudPhone] stop error", e);
     }
   };
+
 
   const stopRef = useRef(stop);
   stopRef.current = stop;
