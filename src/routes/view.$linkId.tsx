@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useCloudPhone } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
+import { beaconResetSession } from "@/lib/sessionBeacon";
 
 export const Route = createFileRoute("/view/$linkId")({
   head: () => ({
@@ -144,53 +145,121 @@ function Viewer({
     viewId: "phoneBox",
   });
   const [connected, setConnected] = useState(false);
+  const [notice, setNotice] = useState<string>("");
   const autoReconnectRef = useRef(false);
   const liveMarkedRef = useRef(false);
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevStatusRef = useRef<SessionStatus>(session.status);
+  const selfResetRef = useRef(false);
+
+  const clearWaitTimer = () => {
+    if (waitTimerRef.current) {
+      clearTimeout(waitTimerRef.current);
+      waitTimerRef.current = null;
+    }
+  };
+
+  const cleanLocal = () => {
+    try { stop(); } catch (_) {}
+    setConnected(false);
+    autoReconnectRef.current = false;
+    liveMarkedRef.current = false;
+    clearWaitTimer();
+  };
 
   const doConnect = async (initialStatus: SessionStatus) => {
+    setNotice("");
     setConnected(true);
     await updateSessionStatus(linkId, initialStatus);
     await start();
   };
 
   const doDisconnect = async (nextStatus?: SessionStatus) => {
-    stop();
-    setConnected(false);
+    cleanLocal();
     if (nextStatus) await updateSessionStatus(linkId, nextStatus);
   };
 
   const onReady = async () => {
-    // 1) update status, 2) kick admin out FIRST
+    // 1) update status, 2) kick admin out FIRST, 3) start wait timer
     await updateSessionStatus(linkId, "ready_for_user");
-    stop();
-    setConnected(false);
-    autoReconnectRef.current = false;
-    liveMarkedRef.current = false;
+    cleanLocal();
   };
 
   const onReset = async () => {
-    stop();
-    setConnected(false);
-    autoReconnectRef.current = false;
-    liveMarkedRef.current = false;
+    console.log("[ViewPage] manual reset", { linkId, sessionStatus: session.status });
+    selfResetRef.current = true;
+    cleanLocal();
+    setNotice("");
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
       session_connected_at: null,
     });
   };
 
-  // When the user starts injecting, auto-reconnect admin in viewer mode
+  // Wait-timer: after 'ready_for_user', auto-reset if user never connects.
+  useEffect(() => {
+    if (session.status !== "ready_for_user") {
+      clearWaitTimer();
+      return;
+    }
+    clearWaitTimer();
+    console.log("[ViewPage] starting 60s wait timer for user connect", { linkId });
+    waitTimerRef.current = setTimeout(() => {
+      console.log("[ViewPage] wait timer fired — user did not connect", { linkId });
+      selfResetRef.current = true;
+      cleanLocal();
+      setNotice("User didn't connect — session reset. Try again.");
+      void updateSessionStatus(linkId, "idle", {
+        session_user_agent: null,
+        session_connected_at: null,
+      });
+    }, 60_000);
+    return clearWaitTimer;
+  }, [session.status, linkId]);
+
+  // Detect status transitions
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    const next = session.status;
+    if (prev !== next) {
+      console.log("[ViewPage] session.status transition", { prev, next, linkId });
+    }
+    // User connected -> clear wait timer & notice
+    if (next === "injecting" && prev !== "injecting") {
+      clearWaitTimer();
+      setNotice("");
+    }
+    // User disconnected (live/injecting -> idle) and not initiated by us
+    if (
+      next === "idle" &&
+      (prev === "injecting" || prev === "live" || prev === "ready_for_user") &&
+      !selfResetRef.current
+    ) {
+      console.log("[ViewPage] detected user disconnect", { prev, linkId });
+      cleanLocal();
+      setNotice(
+        prev === "ready_for_user"
+          ? "Session reset."
+          : "User disconnected.",
+      );
+    }
+    if (next !== "idle") selfResetRef.current = false;
+    prevStatusRef.current = next;
+  }, [session.status, linkId]);
+
+  // When the user starts injecting, auto-reconnect admin in viewer mode (once)
   useEffect(() => {
     if (session.status !== "injecting") return;
     if (connected || autoReconnectRef.current) return;
     autoReconnectRef.current = true;
+    console.log("[ViewPage] auto-reconnecting viewer after user injection", { linkId });
     void (async () => {
       setConnected(true);
       await start();
     })();
-  }, [session.status, connected, start]);
+  }, [session.status, connected, start, linkId]);
 
-  // Once viewer connection is established after injecting, mark live
+  // Once viewer connection is established after injecting, mark live (once)
   useEffect(() => {
     if (liveMarkedRef.current) return;
     if (session.status !== "injecting") return;
@@ -202,6 +271,27 @@ function Viewer({
     }
   }, [status, session.status, connected, linkId]);
 
+  // On unload / unmount, free the session if we were holding it.
+  useEffect(() => {
+    const release = (reason: string) => {
+      const s = prevStatusRef.current;
+      if (s === "idle") return;
+      console.log("[ViewPage] releasing session on leave", { reason, status: s, linkId });
+      beaconResetSession(linkId, `admin-leave:${reason}`);
+      try { stop(); } catch (_) {}
+    };
+    const onPageHide = () => release("pagehide");
+    const onBeforeUnload = () => release("beforeunload");
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      clearWaitTimer();
+      release("unmount");
+    };
+  }, [linkId, stop]);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-8">
@@ -211,6 +301,12 @@ function Viewer({
         </p>
 
         <SessionBox session={session} />
+
+        {notice && (
+          <div className="w-full rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm">
+            {notice}
+          </div>
+        )}
 
         <div
           id="phoneBox"
