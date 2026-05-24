@@ -26,6 +26,7 @@ export interface UseCloudPhoneResult {
   status: string;
   start: () => Promise<void>;
   stop: () => void;
+  refreshStream: () => void;
 }
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
@@ -520,32 +521,38 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         },
         onConnectSuccess: async () => {
           setStatus("Connected");
-          if (isInjector) {
-            try {
-              await engineRef.current!.startMediaStream(2);
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              setStatus("Camera injection error: " + message);
-              return;
-            }
-            try {
-              await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
-            } catch (e) {
-              const m = e instanceof Error ? e.message : String(e);
-              setStatus("setStreamConfig error: " + m);
-            }
-            try {
-              await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
-            } catch (e) {
-              const m = e instanceof Error ? e.message : String(e);
-              setStatus("setScreenResolution error: " + m);
-            }
-            try {
-              const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
-              setStatus("Connected · camera: " + (s as any).status);
-            } catch (_) {
-              setStatus("Connected · camera status unknown");
-            }
+          if (!isInjector) {
+            setTimeout(() => {
+              try {
+                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+              } catch (_) {}
+            }, 1000);
+            return;
+          }
+          try {
+            await engineRef.current!.startMediaStream(2);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatus("Camera injection error: " + message);
+            return;
+          }
+          try {
+            await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setStreamConfig error: " + m);
+          }
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
+          }
+          try {
+            const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
+            setStatus("Connected · camera: " + (s as any).status);
+          } catch (_) {
+            setStatus("Connected · camera status unknown");
           }
         },
         onConnectFail: ({ msg }: { msg?: string }) => {
@@ -575,10 +582,18 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         },
         onMediaDevicesToggle: (stats: { type?: string; enabled?: boolean; isFront?: boolean }) => {
           console.log("[CloudPhone] onMediaDevicesToggle", stats);
-          // Locked modes: ignore entirely.
-          if (cameraModeRef.current !== "dynamic") return;
           const t = stats?.type;
           if (t !== "camera" && t !== "media") return;
+          if (!isInjector) {
+            if (stats?.enabled === true) {
+              try {
+                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+              } catch (_) {}
+            }
+            return;
+          }
+          // Locked modes: ignore entirely.
+          if (cameraModeRef.current !== "dynamic") return;
           if (stats?.enabled !== true) return;
           const target: Facing = stats?.isFront ? "front" : "back";
           void switchToCamera(target);
@@ -606,7 +621,13 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   (window as any).__cloudPhoneEngineRef = engineRef;
 
-  return { status, start, stop };
+  const refreshStream = () => {
+    try {
+      (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+    } catch (_) {}
+  };
+
+  return { status, start, stop, refreshStream };
 }
 
 export function getCloudPhoneEngine(): ArmcloudEngine | null {
