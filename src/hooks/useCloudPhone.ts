@@ -89,6 +89,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   };
 
   const stop = () => {
+    console.trace("[CloudPhone] stop() called", { mode });
     try {
       if (engineRef.current) {
         try {
