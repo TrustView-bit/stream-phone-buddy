@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCloudPhone, type CameraMode, type QualityProfile } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,12 +13,15 @@ export const Route = createFileRoute("/link/$linkId")({
   component: LinkPage,
 });
 
+type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+
 interface LinkConfig {
   label: string;
   pad_code: string;
   camera_mode: CameraMode;
   backQuality: QualityProfile;
   frontQuality: QualityProfile;
+  session_status: SessionStatus;
 }
 
 type LoadState =
@@ -30,47 +33,67 @@ type LoadState =
 function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("links")
-          .select(
-            "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id",
-          )
-          .eq("id", linkId)
-          .maybeSingle();
-        if (error) {
-          setLoad({ kind: "error", message: error.message });
-          return;
-        }
-        if (!data) {
-          setLoad({ kind: "not_found" });
-          return;
-        }
-        setLoad({
-          kind: "ready",
-          config: {
-            label: data.label,
-            pad_code: data.pad_code,
-            camera_mode: (data.camera_mode as CameraMode) ?? "dynamic",
-            backQuality: {
-              definitionId: data.back_definition_id ?? 17,
-              framerateId: data.back_framerate_id ?? 6,
-              bitrateId: data.back_bitrate_id ?? 11,
-            },
-            frontQuality: {
-              definitionId: data.front_definition_id ?? 15,
-              framerateId: data.front_framerate_id ?? 8,
-              bitrateId: data.front_bitrate_id ?? 8,
-            },
-          },
-        });
-      } catch (e) {
-        setLoad({ kind: "error", message: String(e) });
+      const { data, error } = await supabase
+        .from("links")
+        .select(
+          "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status",
+        )
+        .eq("id", linkId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error) {
+        setLoad({ kind: "error", message: error.message });
+        return;
       }
+      if (!data) {
+        setLoad({ kind: "not_found" });
+        return;
+      }
+      const cfg: LinkConfig = {
+        label: data.label,
+        pad_code: data.pad_code,
+        camera_mode: (data.camera_mode as CameraMode) ?? "dynamic",
+        backQuality: {
+          definitionId: data.back_definition_id ?? 17,
+          framerateId: data.back_framerate_id ?? 6,
+          bitrateId: data.back_bitrate_id ?? 11,
+        },
+        frontQuality: {
+          definitionId: data.front_definition_id ?? 15,
+          framerateId: data.front_framerate_id ?? 8,
+          bitrateId: data.front_bitrate_id ?? 8,
+        },
+        session_status: ((data as any).session_status as SessionStatus) ?? "idle",
+      };
+      setLoad({ kind: "ready", config: cfg });
+      setSessionStatus(cfg.session_status);
     })();
+    return () => {
+      cancelled = true;
+    };
+  }, [linkId]);
+
+  // Subscribe to realtime updates of the link's session_status
+  useEffect(() => {
+    const channel = supabase
+      .channel(`link-session-${linkId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "links", filter: `id=eq.${linkId}` },
+        (payload) => {
+          const next = (payload.new as any)?.session_status as SessionStatus | undefined;
+          if (next) setSessionStatus(next);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [linkId]);
 
   if (load.kind === "loading") {
@@ -80,7 +103,6 @@ function LinkPage() {
       </CenteredShell>
     );
   }
-
   if (load.kind === "not_found") {
     return (
       <CenteredShell>
@@ -91,7 +113,6 @@ function LinkPage() {
       </CenteredShell>
     );
   }
-
   if (load.kind === "error") {
     return (
       <CenteredShell>
@@ -101,16 +122,24 @@ function LinkPage() {
     );
   }
 
-  return <LiveLink config={load.config} />;
+  return <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />;
 }
 
-function LiveLink({ config }: { config: LinkConfig }) {
+function LiveLink({
+  linkId,
+  config,
+  sessionStatus,
+}: {
+  linkId: string;
+  config: LinkConfig;
+  sessionStatus: SessionStatus;
+}) {
   const initialRequired: "back" | "front" =
     config.camera_mode === "locked_front" ? "front" :
     config.camera_mode === "locked_back" ? "back" :
     "back";
 
-  const { status, start, stop } = useCloudPhone({
+  const { status, start } = useCloudPhone({
     mode: "injector",
     cameraMode: config.camera_mode,
     requiredCamera: initialRequired,
@@ -120,26 +149,60 @@ function LiveLink({ config }: { config: LinkConfig }) {
     frontQuality: config.frontQuality,
   });
 
-  const [started, setStarted] = useState(false);
+  const startedRef = useRef(false);
+  const injectionMarkedRef = useRef(false);
+
+  // Auto-connect once status becomes ready_for_user
+  useEffect(() => {
+    if (sessionStatus !== "ready_for_user") return;
+    if (startedRef.current) return;
+    startedRef.current = true;
+    void start();
+  }, [sessionStatus, start]);
+
+  // When injection succeeds (cloudphone status shows camera active/live),
+  // mark session_status = 'injecting' and write user-agent + timestamp.
+  useEffect(() => {
+    if (injectionMarkedRef.current) return;
+    const s = status.toLowerCase();
+    const injected =
+      s === "camera active" ||
+      s.startsWith("connected · camera:") ||
+      s.startsWith("connected · camera");
+    if (!injected) return;
+    injectionMarkedRef.current = true;
+    (async () => {
+      await supabase
+        .from("links")
+        .update({
+          session_status: "injecting",
+          session_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+          session_connected_at: new Date().toISOString(),
+          session_updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", linkId);
+    })();
+  }, [status, linkId]);
+
+  // Pre-connect waiting screen
+  if (sessionStatus === "idle" || sessionStatus === "preparing") {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Please wait, preparing your session…
+        </p>
+        <Spinner />
+      </CenteredShell>
+    );
+  }
 
   const friendly = friendlyStatus(status);
-
-  const onStart = async () => {
-    setStarted(true);
-    await start();
-  };
-
-  const onStop = () => {
-    stop();
-    setStarted(false);
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-10">
-        <h1 className="text-center text-2xl font-semibold tracking-tight">
-          {config.label}
-        </h1>
+        <h1 className="text-center text-2xl font-semibold tracking-tight">{config.label}</h1>
         <p className="text-center text-sm text-muted-foreground">
           This page uses your camera and streams it to a remote device.
         </p>
@@ -150,21 +213,6 @@ function LiveLink({ config }: { config: LinkConfig }) {
         />
 
         <div className="flex items-center gap-3">
-          {!started ? (
-            <button
-              onClick={onStart}
-              className="rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Start
-            </button>
-          ) : (
-            <button
-              onClick={onStop}
-              className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium transition-colors hover:bg-accent"
-            >
-              Stop
-            </button>
-          )}
           <button
             id="playBtn"
             hidden
@@ -182,14 +230,14 @@ function LiveLink({ config }: { config: LinkConfig }) {
 
 function friendlyStatus(raw: string): string {
   const s = raw.toLowerCase();
-  if (s === "idle") return "";
+  if (s === "idle") return "Connecting…";
   if (s.startsWith("connected")) return "Live";
+  if (s.includes("camera active")) return "Live";
   if (
     s.includes("requesting token") ||
     s.includes("releasing") ||
     s.includes("init") ||
     s.includes("switching") ||
-    s.includes("camera active") ||
     s.includes("camera switched")
   ) {
     return "Connecting…";
@@ -204,6 +252,12 @@ function friendlyStatus(raw: string): string {
     return "Something went wrong. Please try again.";
   }
   return "Connecting…";
+}
+
+function Spinner() {
+  return (
+    <div className="mt-6 h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+  );
 }
 
 function CenteredShell({ children }: { children: React.ReactNode }) {
