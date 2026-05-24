@@ -585,6 +585,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const t = stats?.type;
           if (t !== "camera" && t !== "media") return;
           if (!isInjector) {
+            if (isRefreshingRef.current) {
+              if (stats?.enabled === true) viewerRemoteCameraEnabledRef.current = true;
+              return;
+            }
             if (stats?.enabled !== true) {
               viewerRemoteCameraEnabledRef.current = false;
               return;
