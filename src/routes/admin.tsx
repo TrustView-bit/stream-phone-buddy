@@ -323,6 +323,14 @@ function LinkRowItem({ row, onEdit }: { row: LinkRow; onEdit: () => void }) {
         >
           Open
         </a>
+        <a
+          href={`/view/${row.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+        >
+          View Live
+        </a>
         <button
           onClick={onEdit}
           className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
