@@ -205,17 +205,9 @@ function LiveLink({
 
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
+  const [tapStarted, setTapStarted] = useState(false);
 
-  // 1) Auto-connect once when admin signals ready
-  useEffect(() => {
-    if (sessionStatus !== "ready_for_user") return;
-    if (startedRef.current) return;
-    startedRef.current = true;
-    console.log("[LinkPage] ready_for_user → start()");
-    void start();
-  }, [sessionStatus, start]);
-
-  // 2) When injection succeeds, mark session_status = 'injecting' (once)
+  // When injection succeeds, mark session_status = 'injecting' (once)
   useEffect(() => {
     if (injectionMarkedRef.current) return;
     const s = status.toLowerCase();
@@ -252,6 +244,39 @@ function LiveLink({
           Please wait, preparing your session…
         </p>
         <Spinner />
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
+      </CenteredShell>
+    );
+  }
+
+  // Tap-to-start screen (required user gesture for camera permission)
+  if (sessionStatus === "ready_for_user" && !tapStarted) {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your session is ready.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This will use your camera and stream it to a remote device.
+        </p>
+        <button
+          onClick={() => {
+            if (startedRef.current) return;
+            startedRef.current = true;
+            setTapStarted(true);
+            console.log("[LinkPage] user tapped → start()");
+            void start();
+          }}
+          className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
+        >
+          Tap to start your camera
+        </button>
         <DebugBar
           sessionStatus={sessionStatus}
           rtStatus={rtStatus}
