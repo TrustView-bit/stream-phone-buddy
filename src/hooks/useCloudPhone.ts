@@ -26,6 +26,9 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     requiredCamera = "back",
     padCode: padCodeOverride,
     viewId = "phoneBox",
+    definitionId = 17,
+    framerateId = 6,
+    bitrateId = 11,
   } = options;
 
   const [status, setStatus] = useState("Idle");
