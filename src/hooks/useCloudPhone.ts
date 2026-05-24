@@ -659,7 +659,3 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   return { status, start, stop, refreshStream };
 }
 
-export function getCloudPhoneEngine(): ArmcloudEngine | null {
-  const ref = (window as any).__cloudPhoneEngineRef as { current: ArmcloudEngine | null } | undefined;
-  return ref?.current ?? null;
-}
