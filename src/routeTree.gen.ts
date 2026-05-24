@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ViewLinkIdRouteImport } from './routes/view.$linkId'
 import { Route as LinkLinkIdRouteImport } from './routes/link.$linkId'
 
 const AdminRoute = AdminRouteImport.update({
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ViewLinkIdRoute = ViewLinkIdRouteImport.update({
+  id: '/view/$linkId',
+  path: '/view/$linkId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LinkLinkIdRoute = LinkLinkIdRouteImport.update({
   id: '/link/$linkId',
   path: '/link/$linkId',
@@ -33,30 +39,34 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/link/$linkId'
+  fullPaths: '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/link/$linkId'
-  id: '__root__' | '/' | '/admin' | '/link/$linkId'
+  to: '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
+  id: '__root__' | '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   LinkLinkIdRoute: typeof LinkLinkIdRoute
+  ViewLinkIdRoute: typeof ViewLinkIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/view/$linkId': {
+      id: '/view/$linkId'
+      path: '/view/$linkId'
+      fullPath: '/view/$linkId'
+      preLoaderRoute: typeof ViewLinkIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/link/$linkId': {
       id: '/link/$linkId'
       path: '/link/$linkId'
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   LinkLinkIdRoute: LinkLinkIdRoute,
+  ViewLinkIdRoute: ViewLinkIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
