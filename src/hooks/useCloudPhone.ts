@@ -442,10 +442,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       const w = window as unknown as {
         __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia;
         __cloudPhoneGumPatchVersion?: string;
-        __cloudPhoneOrigAddTrack?: typeof RTCPeerConnection.prototype.addTrack;
-        __cloudPhoneAddTrackPatched?: boolean;
-        __cloudPhoneOrigAddTransceiver?: typeof RTCPeerConnection.prototype.addTransceiver;
-        __cloudPhoneAddTransceiverPatched?: boolean;
       };
 
       if (!w.__cloudPhoneOrigGetUserMedia) {
@@ -471,26 +467,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         };
         w.__cloudPhoneGumPatchVersion = "canvas-v4-visible";
       }
-
-      if (!w.__cloudPhoneAddTrackPatched && typeof window.RTCPeerConnection?.prototype?.addTrack === "function") {
-        w.__cloudPhoneOrigAddTrack = RTCPeerConnection.prototype.addTrack;
-        RTCPeerConnection.prototype.addTrack = function patchedAddTrack(track: MediaStreamTrack, ...streams: MediaStream[]) {
-          return w.__cloudPhoneOrigAddTrack!.call(this, track, ...streams);
-        };
-        w.__cloudPhoneAddTrackPatched = true;
-      }
-
-      if (!w.__cloudPhoneAddTransceiverPatched && typeof window.RTCPeerConnection?.prototype?.addTransceiver === "function") {
-        w.__cloudPhoneOrigAddTransceiver = RTCPeerConnection.prototype.addTransceiver;
-        RTCPeerConnection.prototype.addTransceiver = function patchedAddTransceiver(
-          trackOrKind: MediaStreamTrack | string,
-          init?: RTCRtpTransceiverInit,
-        ) {
-          return w.__cloudPhoneOrigAddTransceiver!.call(this, trackOrKind, init);
-        };
-        w.__cloudPhoneAddTransceiverPatched = true;
-      }
     }
+
 
     if (!padCodeOverride) {
       setStatus("Missing pad code");
