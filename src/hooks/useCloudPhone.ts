@@ -6,15 +6,20 @@ export type CloudPhoneMode = "injector" | "viewer";
 export type CameraMode = "dynamic" | "locked_back" | "locked_front";
 type Facing = "back" | "front";
 
+export interface QualityProfile {
+  definitionId: number;
+  framerateId: number;
+  bitrateId: number;
+}
+
 export interface UseCloudPhoneOptions {
   mode: CloudPhoneMode;
   cameraMode?: CameraMode;
   requiredCamera?: Facing;
   padCode?: string;
   viewId?: string;
-  definitionId?: number;
-  framerateId?: number;
-  bitrateId?: number;
+  backQuality?: QualityProfile;
+  frontQuality?: QualityProfile;
 }
 
 export interface UseCloudPhoneResult {
