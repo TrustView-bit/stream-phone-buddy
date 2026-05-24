@@ -483,6 +483,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
             b.onclick = () => engineRef.current?.startPlay();
           }
         },
+        onMediaDevicesToggle: (stats) => {
+          console.log("[CloudPhone] onMediaDevicesToggle", stats);
+          setStatus(`Cloud phone camera request: type=${stats.type} enabled=${stats.enabled} isFront=${stats.isFront}`);
+        },
         onAutoRecoveryTime: () => engineRef.current?.start(),
       },
     });
