@@ -9,6 +9,9 @@ export interface UseCloudPhoneOptions {
   requiredCamera?: "back" | "front";
   padCode?: string;
   viewId?: string;
+  definitionId?: number;
+  framerateId?: number;
+  bitrateId?: number;
 }
 
 export interface UseCloudPhoneResult {
