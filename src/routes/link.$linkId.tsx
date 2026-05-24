@@ -80,17 +80,27 @@ function LinkPage() {
 
   // Subscribe to realtime updates of the link's session_status
   useEffect(() => {
+    const filter = `id=eq.${linkId}`;
     const channel = supabase
       .channel(`link-session-${linkId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "links", filter: `id=eq.${linkId}` },
+        { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
+          console.log("[LinkPage] realtime links UPDATE received", {
+            linkId,
+            filter,
+            oldStatus: (payload.old as any)?.session_status,
+            newStatus: (payload.new as any)?.session_status,
+            payload,
+          });
           const next = (payload.new as any)?.session_status as SessionStatus | undefined;
           if (next) setSessionStatus(next);
         },
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        console.log("[LinkPage] realtime subscription status", { linkId, filter, status, error });
+      });
     return () => {
       supabase.removeChannel(channel);
     };
@@ -172,7 +182,7 @@ function LiveLink({
     if (!injected) return;
     injectionMarkedRef.current = true;
     (async () => {
-      await supabase
+      const result = await supabase
         .from("links")
         .update({
           session_status: "injecting",
@@ -181,6 +191,18 @@ function LiveLink({
           session_updated_at: new Date().toISOString(),
         } as any)
         .eq("id", linkId);
+      if (result.error) {
+        console.error("[LinkPage] session_status update failed", {
+          linkId,
+          status: "injecting",
+          error: result.error,
+        });
+      } else {
+        console.log("[LinkPage] session_status update succeeded", {
+          linkId,
+          status: "injecting",
+        });
+      }
     })();
   }, [status, linkId]);
 
