@@ -581,10 +581,18 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         },
         onMediaDevicesToggle: (stats: { type?: string; enabled?: boolean; isFront?: boolean }) => {
           console.log("[CloudPhone] onMediaDevicesToggle", stats);
-          // Locked modes: ignore entirely.
-          if (cameraModeRef.current !== "dynamic") return;
           const t = stats?.type;
           if (t !== "camera" && t !== "media") return;
+          if (!isInjector) {
+            if (stats?.enabled === true) {
+              try {
+                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+              } catch (_) {}
+            }
+            return;
+          }
+          // Locked modes: ignore entirely.
+          if (cameraModeRef.current !== "dynamic") return;
           if (stats?.enabled !== true) return;
           const target: Facing = stats?.isFront ? "front" : "back";
           void switchToCamera(target);
