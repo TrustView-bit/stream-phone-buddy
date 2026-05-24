@@ -630,7 +630,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     };
   }, []);
 
-  (window as any).__cloudPhoneEngineRef = engineRef;
+
 
   const refreshStream = async () => {
     if (mode === "viewer") {
