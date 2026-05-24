@@ -128,7 +128,6 @@ function Index() {
             facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
             width: { ideal: 3840 },
             height: { ideal: 2160 },
-            frameRate: { ideal: 30 },
           },
         });
       } catch (e) {
