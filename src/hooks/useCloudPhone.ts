@@ -620,7 +620,13 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   (window as any).__cloudPhoneEngineRef = engineRef;
 
-  return { status, start, stop };
+  const refreshStream = () => {
+    try {
+      (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+    } catch (_) {}
+  };
+
+  return { status, start, stop, refreshStream };
 }
 
 export function getCloudPhoneEngine(): ArmcloudEngine | null {
