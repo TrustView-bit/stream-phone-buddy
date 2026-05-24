@@ -57,6 +57,7 @@ function Index() {
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
       let raw: MediaStream;
+      let exactErrorInfo = "";
       try {
         raw = await getRawUserMedia({
           video: {
@@ -65,7 +66,11 @@ function Index() {
             height: { ideal: 1080, min: 720 },
           },
         });
-      } catch (_e) {
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        exactErrorInfo = `back-camera exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+        console.warn("[CloudPhone]", exactErrorInfo);
+        setStatus(exactErrorInfo);
         raw = await getRawUserMedia({
           video: {
             facingMode: { ideal: "environment" },
@@ -81,10 +86,33 @@ function Index() {
       console.log("Camera settings:", settings);
       setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
 
+      // Enumerate video devices (labels populated after permission granted)
+      let videoInputCount = 0;
+      let deviceListStr = "";
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === "videoinput");
+        videoInputCount = videoInputs.length;
+        console.log("[CloudPhone] videoinput devices:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
+        deviceListStr = videoInputs.map((d, i) => `  [${i}] ${d.label || "(no label)"}`).join("\n");
+      } catch (enumErr) {
+        console.warn("[CloudPhone] enumerateDevices failed", enumErr);
+      }
+
+      const facing = settings?.facingMode ?? "(unknown)";
+      const label = rawTrack?.label ?? "(no label)";
+      setVideoDebug(
+        `Camera: ${settings?.width ?? "?"}×${settings?.height ?? "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
+        `facingMode: ${facing}\n` +
+        `label: ${label}\n` +
+        `videoinputs: ${videoInputCount}\n${deviceListStr}` +
+        (exactErrorInfo ? `\n${exactErrorInfo}` : "")
+      );
     } catch (_) {
       setStatus("Camera permission denied");
       return;
     }
+
 
     // The SDK does not accept an app-supplied MediaStream in startMediaStream().
     // It calls navigator.mediaDevices.getUserMedia() internally, so force that
