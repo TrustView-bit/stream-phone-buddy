@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useCloudPhone, type CameraMode, type QualityProfile } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
-import { beaconResetSession } from "@/lib/sessionBeacon";
 
 export const Route = createFileRoute("/link/$linkId")({
   head: () => ({
@@ -35,8 +34,6 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
-  const [realtimeState, setRealtimeState] = useState<string>("CONNECTING");
-  const [lastSource, setLastSource] = useState<string>("init");
 
   useEffect(() => {
     let cancelled = false;
@@ -75,7 +72,6 @@ function LinkPage() {
       };
       setLoad({ kind: "ready", config: cfg });
       setSessionStatus(cfg.session_status);
-      setLastSource("initial-fetch");
     })();
     return () => {
       cancelled = true;
@@ -85,7 +81,6 @@ function LinkPage() {
   // Subscribe to realtime updates of the link's session_status
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
-    setRealtimeState("CONNECTING");
     const channel = supabase
       .channel(`link-session-${linkId}`)
       .on(
@@ -100,49 +95,16 @@ function LinkPage() {
             payload,
           });
           const next = (payload.new as any)?.session_status as SessionStatus | undefined;
-          if (next) {
-            setSessionStatus(next);
-            setLastSource("realtime");
-          }
+          if (next) setSessionStatus(next);
         },
       )
       .subscribe((status, error) => {
         console.log("[LinkPage] realtime subscription status", { linkId, filter, status, error });
-        setRealtimeState(error ? `ERROR: ${error.message ?? error}` : status);
       });
     return () => {
       supabase.removeChannel(channel);
-      setRealtimeState("CLOSED");
     };
   }, [linkId]);
-
-  // Polling fallback — every 2s re-fetch session_status so we never get
-  // stuck if a realtime event is missed.
-  useEffect(() => {
-    if (load.kind !== "ready") return;
-    const tick = async () => {
-      const { data, error } = await supabase
-        .from("links")
-        .select("session_status")
-        .eq("id", linkId)
-        .maybeSingle();
-      if (error) {
-        console.warn("[LinkPage] poll error", error);
-        return;
-      }
-      const next = (data as any)?.session_status as SessionStatus | undefined;
-      if (!next) return;
-      setSessionStatus((cur) => {
-        if (cur !== next) {
-          console.log("[LinkPage] poll detected status change", { from: cur, to: next });
-          setLastSource("poll");
-        }
-        return next;
-      });
-    };
-    const id = setInterval(tick, 2000);
-    return () => clearInterval(id);
-  }, [linkId, load.kind]);
 
   if (load.kind === "loading") {
     return (
@@ -170,36 +132,7 @@ function LinkPage() {
     );
   }
 
-  return (
-    <>
-      <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />
-      <DebugBar sessionStatus={sessionStatus} realtimeState={realtimeState} lastSource={lastSource} />
-    </>
-  );
-}
-
-function DebugBar({
-  sessionStatus,
-  realtimeState,
-  lastSource,
-}: {
-  sessionStatus: string;
-  realtimeState: string;
-  lastSource: string;
-}) {
-  const rtTone =
-    realtimeState === "SUBSCRIBED"
-      ? "text-emerald-400"
-      : realtimeState.startsWith("ERROR")
-      ? "text-red-400"
-      : "text-amber-400";
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-50 bg-black/80 px-3 py-1.5 text-center font-mono text-[11px] text-white">
-      status: <span className="font-semibold">{sessionStatus}</span>
-      {" · "}rt: <span className={`font-semibold ${rtTone}`}>{realtimeState}</span>
-      {" · "}src: <span className="font-semibold">{lastSource}</span>
-    </div>
-  );
+  return <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />;
 }
 
 function LiveLink({
@@ -228,12 +161,6 @@ function LiveLink({
 
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
-  // Stable reference to stop() so effects don't re-fire (and cleanup) just
-  // because the hook re-rendered and produced a new closure.
-  const stopRef = useRef(stop);
-  stopRef.current = stop;
-  const sessionStatusRef = useRef(sessionStatus);
-  sessionStatusRef.current = sessionStatus;
 
   // Auto-connect once status becomes ready_for_user
   useEffect(() => {
@@ -249,10 +176,10 @@ function LiveLink({
     if (sessionStatus !== "idle" && sessionStatus !== "preparing") return;
     if (!startedRef.current && !injectionMarkedRef.current) return;
     console.log("[LinkPage] session reset detected, stopping cloud phone", { sessionStatus });
-    try { stopRef.current(); } catch (e) { console.warn("[LinkPage] stop threw", e); }
+    try { stop(); } catch (e) { console.warn("[LinkPage] stop threw", e); }
     startedRef.current = false;
     injectionMarkedRef.current = false;
-  }, [sessionStatus]);
+  }, [sessionStatus, stop]);
 
   // When injection succeeds (cloudphone status shows camera active/live),
   // mark session_status = 'injecting' and write user-agent + timestamp.
@@ -289,35 +216,6 @@ function LiveLink({
       }
     })();
   }, [status, linkId]);
-
-  // On unload / unmount, free the session so the admin doesn't stay stuck.
-  // IMPORTANT: depends only on linkId — depending on `stop` would re-fire
-  // cleanup on every hook re-render and incorrectly reset the session to
-  // 'idle' (e.g. clobbering 'ready_for_user' right after admin pressed Ready).
-  useEffect(() => {
-    const reset = (reason: string) => {
-      if (!startedRef.current && !injectionMarkedRef.current) {
-        console.log("[LinkPage] reset skipped — nothing started", { reason, linkId });
-        return;
-      }
-      console.log("[LinkPage] releasing session on leave -> idle", {
-        reason,
-        linkId,
-        sessionStatus: sessionStatusRef.current,
-      });
-      beaconResetSession(linkId, `user-leave:${reason}`);
-      try { stopRef.current(); } catch (_) {}
-    };
-    const onPageHide = () => reset("pagehide");
-    const onBeforeUnload = () => reset("beforeunload");
-    window.addEventListener("pagehide", onPageHide);
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("pagehide", onPageHide);
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      reset("unmount");
-    };
-  }, [linkId]);
 
   // Pre-connect waiting screen
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
