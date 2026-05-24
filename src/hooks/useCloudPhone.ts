@@ -639,6 +639,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const refreshStream = async () => {
     if (mode === "viewer") {
       if (isRefreshingRef.current) return;
+      if (viewerAutoRefreshTimerRef.current !== null) {
+        window.clearTimeout(viewerAutoRefreshTimerRef.current);
+        viewerAutoRefreshTimerRef.current = null;
+      }
       isRefreshingRef.current = true;
       try {
         stopRef.current();
