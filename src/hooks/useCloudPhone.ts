@@ -411,7 +411,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: 17, frameRate: 6, bitrate: 11 },
+        videoStream: { resolution: definitionId, frameRate: framerateId, bitrate: bitrateId },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
