@@ -226,6 +226,18 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
       currentFacingRef.current = target;
       requiredCameraRef.current = target;
+
+      // Apply per-camera quality profile (dynamic mode only).
+      // Back = sharp/static detail; Front = smoother for people/movement.
+      const profile = target === "front"
+        ? { definitionId: 15, framerateId: 8, bitrateId: 8 }
+        : { definitionId: 17, framerateId: 6, bitrateId: 11 };
+      try {
+        await (engineRef.current as any)?.setStreamConfig?.(profile);
+        console.log("[CloudPhone] setStreamConfig applied for", target, profile);
+      } catch (e) {
+        console.warn("[CloudPhone] setStreamConfig on switch failed", e);
+      }
       setStatus(`Camera switched: ${target}`);
     } catch (e) {
       console.warn("[CloudPhone] switchToCamera error", e);
