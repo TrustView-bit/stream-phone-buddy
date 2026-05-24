@@ -474,13 +474,25 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       setStatus("Missing pad code");
       return;
     }
-    const { data, error } = await supabase.functions.invoke("cloudphone-token", {
-      body: { padCode: padCodeOverride },
-    });
+    console.log("[CloudPhone] requesting token", { padCode: padCodeOverride, mode });
+    const fetchToken = async () => {
+      return supabase.functions.invoke("cloudphone-token", {
+        body: { padCode: padCodeOverride },
+      });
+    };
+    let { data, error } = await fetchToken();
     if (error) {
-      setStatus("Token error: " + error.message);
+      console.error("[CloudPhone] token fetch failed (attempt 1)", { error, data });
+      setStatus("Token error, retrying…");
+      await new Promise((r) => setTimeout(r, 500));
+      ({ data, error } = await fetchToken());
+    }
+    if (error || !data?.token) {
+      console.error("[CloudPhone] token fetch failed (final)", { error, data });
+      setStatus("Token error: " + (error?.message ?? "no token returned"));
       return;
     }
+    console.log("[CloudPhone] token received", { hasToken: !!data.token, padCode: data.padCode });
     const token = data.token;
     const padCode = padCodeOverride ?? data.padCode;
 
