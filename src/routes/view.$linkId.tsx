@@ -97,6 +97,14 @@ function Viewer({ padCode, label }: { padCode: string; label: string }) {
               Disconnect
             </button>
           )}
+          {started && (
+            <button
+              onClick={() => refreshStream()}
+              className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Refresh stream
+            </button>
+          )}
           <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm">
             Tap to play
           </button>
