@@ -441,7 +441,7 @@ function Index() {
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: 12, frameRate: 8, bitrate: 8 },
+        videoStream: { resolution: 17, frameRate: 6, bitrate: 8 },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
@@ -467,11 +467,18 @@ function Index() {
             return;
           }
           try {
-            await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: 8 });
-            console.log("[CloudPhone] setStreamConfig applied: def=12 fr=8 br=8");
+            await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 8 });
+            console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=8 (FHD-Sharp)");
           } catch (e) {
             const m = e instanceof Error ? e.message : String(e);
             setStatus("setStreamConfig error: " + m);
+          }
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+            console.log("[CloudPhone] setScreenResolution applied: 1080x1920 @480dpi");
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
           }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
@@ -582,25 +589,31 @@ function Index() {
           >
             Tap to play
           </button>
-          {[1, 4, 8, 12].map((br) => (
+          {([
+            { label: "FHD-Sharp", definitionId: 17, framerateId: 6, bitrateId: 8 },
+            { label: "FHD-Max", definitionId: 17, framerateId: 6, bitrateId: 11 },
+            { label: "2K-Sharp", definitionId: 18, framerateId: 5, bitrateId: 12 },
+            { label: "720-Stable", definitionId: 15, framerateId: 6, bitrateId: 5 },
+          ] as const).map((cfg) => (
             <button
-              key={br}
+              key={cfg.label}
               onClick={async () => {
                 if (!engineRef.current) {
                   setStatus("No engine");
                   return;
                 }
+                const desc = `def=${cfg.definitionId} fr=${cfg.framerateId} br=${cfg.bitrateId}`;
                 try {
-                  await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: br });
-                  setStatus(`setStreamConfig OK: def=12 fr=8 br=${br}`);
+                  await (engineRef.current as any).setStreamConfig({ definitionId: cfg.definitionId, framerateId: cfg.framerateId, bitrateId: cfg.bitrateId });
+                  setStatus(`setStreamConfig OK: ${cfg.label} (${desc})`);
                 } catch (e) {
                   const m = e instanceof Error ? e.message : String(e);
-                  setStatus(`setStreamConfig br=${br} error: ${m}`);
+                  setStatus(`setStreamConfig ${cfg.label} (${desc}) error: ${m}`);
                 }
               }}
               className="rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent"
             >
-              BR {br}
+              {cfg.label}
             </button>
           ))}
         </div>
