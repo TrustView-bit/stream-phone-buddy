@@ -26,7 +26,7 @@ export interface UseCloudPhoneResult {
   status: string;
   start: () => Promise<void>;
   stop: () => void;
-  refreshStream: () => void;
+  refreshStream: () => Promise<void>;
 }
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
@@ -64,6 +64,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const switchInProgressRef = useRef(false);
   const pendingSwitchRef = useRef<Facing | null>(null);
   const lastSwitchAtRef = useRef(0);
+  const isRefreshingRef = useRef(false);
+  const viewerAutoRefreshTimerRef = useRef<number | null>(null);
+  const lastViewerAutoRefreshAtRef = useRef(0);
+  const viewerRemoteCameraEnabledRef = useRef(false);
 
   const cleanupCameraPipeline = () => {
     if (drawRafRef.current !== null) {
@@ -103,6 +107,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   const stopRef = useRef(stop);
   stopRef.current = stop;
+  const startRef = useRef<(() => Promise<void>) | null>(null);
 
   /**
    * Acquire a raw camera MediaStream for the requested facing using strict
@@ -522,11 +527,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         onConnectSuccess: async () => {
           setStatus("Connected");
           if (!isInjector) {
-            setTimeout(() => {
-              try {
-                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
-              } catch (_) {}
-            }, 1000);
             return;
           }
           try {
@@ -585,10 +585,24 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const t = stats?.type;
           if (t !== "camera" && t !== "media") return;
           if (!isInjector) {
-            if (stats?.enabled === true) {
-              try {
-                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
-              } catch (_) {}
+            if (isRefreshingRef.current) {
+              if (stats?.enabled === true) viewerRemoteCameraEnabledRef.current = true;
+              return;
+            }
+            if (stats?.enabled !== true) {
+              viewerRemoteCameraEnabledRef.current = false;
+              return;
+            }
+            if (!viewerRemoteCameraEnabledRef.current) {
+              viewerRemoteCameraEnabledRef.current = true;
+              const now = Date.now();
+              if (now - lastViewerAutoRefreshAtRef.current > 1500 && viewerAutoRefreshTimerRef.current === null) {
+                lastViewerAutoRefreshAtRef.current = now;
+                viewerAutoRefreshTimerRef.current = window.setTimeout(() => {
+                  viewerAutoRefreshTimerRef.current = null;
+                  void refreshStream();
+                }, 250);
+              }
             }
             return;
           }
@@ -602,6 +616,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       },
     });
   };
+  startRef.current = start;
 
   useEffect(() => {
     const handler = () => stopRef.current();
@@ -612,6 +627,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     window.addEventListener("pagehide", handler);
     document.addEventListener("visibilitychange", visHandler);
     return () => {
+      if (viewerAutoRefreshTimerRef.current !== null) {
+        window.clearTimeout(viewerAutoRefreshTimerRef.current);
+        viewerAutoRefreshTimerRef.current = null;
+      }
       window.removeEventListener("beforeunload", handler);
       window.removeEventListener("pagehide", handler);
       document.removeEventListener("visibilitychange", visHandler);
@@ -621,7 +640,25 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   (window as any).__cloudPhoneEngineRef = engineRef;
 
-  const refreshStream = () => {
+  const refreshStream = async () => {
+    if (mode === "viewer") {
+      if (isRefreshingRef.current) return;
+      if (viewerAutoRefreshTimerRef.current !== null) {
+        window.clearTimeout(viewerAutoRefreshTimerRef.current);
+        viewerAutoRefreshTimerRef.current = null;
+      }
+      isRefreshingRef.current = true;
+      try {
+        stopRef.current();
+        await new Promise((r) => setTimeout(r, 800));
+        await startRef.current?.();
+      } catch (e) {
+        console.warn("[CloudPhone] viewer refresh failed", e);
+      } finally {
+        isRefreshingRef.current = false;
+      }
+      return;
+    }
     try {
       (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
     } catch (_) {}
