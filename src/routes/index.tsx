@@ -56,19 +56,31 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
-      const raw = await getRawUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      });
+      let raw: MediaStream;
+      try {
+        raw = await getRawUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+          },
+        });
+      } catch (_e) {
+        raw = await getRawUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+      }
       rawCameraRef.current = raw;
       const rawTrack = raw.getVideoTracks()[0];
       (rawTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
       const settings = rawTrack?.getSettings();
       console.log("Camera settings:", settings);
       setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
+
     } catch (_) {
       setStatus("Camera permission denied");
       return;
@@ -140,8 +152,9 @@ function Index() {
       `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused}${playError ? ` playErr=${playError}` : ""}`,
     );
 
-    const CANVAS_W = 720;
-    const CANVAS_H = 1280;
+    const CANVAS_W = 1080;
+    const CANVAS_H = 1920;
+
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
