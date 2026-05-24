@@ -106,6 +106,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   const stopRef = useRef(stop);
   stopRef.current = stop;
+  const startRef = useRef<(() => Promise<void>) | null>(null);
 
   /**
    * Acquire a raw camera MediaStream for the requested facing using strict
@@ -525,11 +526,6 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         onConnectSuccess: async () => {
           setStatus("Connected");
           if (!isInjector) {
-            setTimeout(() => {
-              try {
-                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
-              } catch (_) {}
-            }, 1000);
             return;
           }
           try {
@@ -589,9 +585,14 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           if (t !== "camera" && t !== "media") return;
           if (!isInjector) {
             if (stats?.enabled === true) {
-              try {
-                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
-              } catch (_) {}
+              const now = Date.now();
+              if (now - lastViewerAutoRefreshAtRef.current > 1500 && viewerAutoRefreshTimerRef.current === null) {
+                lastViewerAutoRefreshAtRef.current = now;
+                viewerAutoRefreshTimerRef.current = window.setTimeout(() => {
+                  viewerAutoRefreshTimerRef.current = null;
+                  void refreshStream();
+                }, 250);
+              }
             }
             return;
           }
