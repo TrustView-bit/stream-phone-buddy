@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       app_settings: {
         Row: {
+          camera_mode: string
           consent_text: string | null
           id: string
           pad_code: string | null
@@ -26,6 +27,7 @@ export type Database = {
           required_camera: string
         }
         Insert: {
+          camera_mode?: string
           consent_text?: string | null
           id: string
           pad_code?: string | null
@@ -36,6 +38,7 @@ export type Database = {
           required_camera?: string
         }
         Update: {
+          camera_mode?: string
           consent_text?: string | null
           id?: string
           pad_code?: string | null
