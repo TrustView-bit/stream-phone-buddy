@@ -57,11 +57,16 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
-    // Step 1: unlock device labels via a temp stream, then stop it.
+    // Step 1: unlock device labels via a temp stream, then FULLY stop it so it doesn't
+    // pin the camera into a low-res mode for the real acquisition below.
     let videoInputs: MediaDeviceInfo[] = [];
     try {
       const temp = await getRawUserMedia({ video: true });
-      temp.getTracks().forEach((t) => t.stop());
+      temp.getTracks().forEach((t) => {
+        try { t.stop(); } catch (_) {}
+      });
+      // Small yield so the OS releases the camera handle before re-opening at high-res.
+      await new Promise((r) => setTimeout(r, 150));
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoInputs = devices.filter((d) => d.kind === "videoinput");
       console.log("[CloudPhone] videoinputs:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
