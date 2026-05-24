@@ -589,25 +589,31 @@ function Index() {
           >
             Tap to play
           </button>
-          {[1, 4, 8, 12].map((br) => (
+          {([
+            { label: "FHD-Sharp", definitionId: 17, framerateId: 6, bitrateId: 8 },
+            { label: "FHD-Max", definitionId: 17, framerateId: 6, bitrateId: 11 },
+            { label: "2K-Sharp", definitionId: 18, framerateId: 5, bitrateId: 12 },
+            { label: "720-Stable", definitionId: 15, framerateId: 6, bitrateId: 5 },
+          ] as const).map((cfg) => (
             <button
-              key={br}
+              key={cfg.label}
               onClick={async () => {
                 if (!engineRef.current) {
                   setStatus("No engine");
                   return;
                 }
+                const desc = `def=${cfg.definitionId} fr=${cfg.framerateId} br=${cfg.bitrateId}`;
                 try {
-                  await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: br });
-                  setStatus(`setStreamConfig OK: def=12 fr=8 br=${br}`);
+                  await (engineRef.current as any).setStreamConfig({ definitionId: cfg.definitionId, framerateId: cfg.framerateId, bitrateId: cfg.bitrateId });
+                  setStatus(`setStreamConfig OK: ${cfg.label} (${desc})`);
                 } catch (e) {
                   const m = e instanceof Error ? e.message : String(e);
-                  setStatus(`setStreamConfig br=${br} error: ${m}`);
+                  setStatus(`setStreamConfig ${cfg.label} (${desc}) error: ${m}`);
                 }
               }}
               className="rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent"
             >
-              BR {br}
+              {cfg.label}
             </button>
           ))}
         </div>
