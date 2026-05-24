@@ -149,7 +149,7 @@ function LiveLink({
     config.camera_mode === "locked_back" ? "back" :
     "back";
 
-  const { status, start } = useCloudPhone({
+  const { status, start, stop } = useCloudPhone({
     mode: "injector",
     cameraMode: config.camera_mode,
     requiredCamera: initialRequired,
@@ -169,6 +169,17 @@ function LiveLink({
     startedRef.current = true;
     void start();
   }, [sessionStatus, start]);
+
+  // When admin resets the session, tear down any active connection and
+  // return to the waiting screen so we can re-start on next ready_for_user.
+  useEffect(() => {
+    if (sessionStatus !== "idle" && sessionStatus !== "preparing") return;
+    if (!startedRef.current && !injectionMarkedRef.current) return;
+    console.log("[LinkPage] session reset detected, stopping cloud phone", { sessionStatus });
+    try { stop(); } catch (e) { console.warn("[LinkPage] stop threw", e); }
+    startedRef.current = false;
+    injectionMarkedRef.current = false;
+  }, [sessionStatus, stop]);
 
   // When injection succeeds (cloudphone status shows camera active/live),
   // mark session_status = 'injecting' and write user-agent + timestamp.
