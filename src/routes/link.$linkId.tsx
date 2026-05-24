@@ -35,6 +35,8 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
+  const [realtimeState, setRealtimeState] = useState<string>("CONNECTING");
+  const [lastSource, setLastSource] = useState<string>("init");
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +75,7 @@ function LinkPage() {
       };
       setLoad({ kind: "ready", config: cfg });
       setSessionStatus(cfg.session_status);
+      setLastSource("initial-fetch");
     })();
     return () => {
       cancelled = true;
@@ -82,6 +85,7 @@ function LinkPage() {
   // Subscribe to realtime updates of the link's session_status
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
+    setRealtimeState("CONNECTING");
     const channel = supabase
       .channel(`link-session-${linkId}`)
       .on(
@@ -96,16 +100,49 @@ function LinkPage() {
             payload,
           });
           const next = (payload.new as any)?.session_status as SessionStatus | undefined;
-          if (next) setSessionStatus(next);
+          if (next) {
+            setSessionStatus(next);
+            setLastSource("realtime");
+          }
         },
       )
       .subscribe((status, error) => {
         console.log("[LinkPage] realtime subscription status", { linkId, filter, status, error });
+        setRealtimeState(error ? `ERROR: ${error.message ?? error}` : status);
       });
     return () => {
       supabase.removeChannel(channel);
+      setRealtimeState("CLOSED");
     };
   }, [linkId]);
+
+  // Polling fallback — every 2s re-fetch session_status so we never get
+  // stuck if a realtime event is missed.
+  useEffect(() => {
+    if (load.kind !== "ready") return;
+    const tick = async () => {
+      const { data, error } = await supabase
+        .from("links")
+        .select("session_status")
+        .eq("id", linkId)
+        .maybeSingle();
+      if (error) {
+        console.warn("[LinkPage] poll error", error);
+        return;
+      }
+      const next = (data as any)?.session_status as SessionStatus | undefined;
+      if (!next) return;
+      setSessionStatus((cur) => {
+        if (cur !== next) {
+          console.log("[LinkPage] poll detected status change", { from: cur, to: next });
+          setLastSource("poll");
+        }
+        return next;
+      });
+    };
+    const id = setInterval(tick, 2000);
+    return () => clearInterval(id);
+  }, [linkId, load.kind]);
 
   if (load.kind === "loading") {
     return (
@@ -133,7 +170,36 @@ function LinkPage() {
     );
   }
 
-  return <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />;
+  return (
+    <>
+      <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />
+      <DebugBar sessionStatus={sessionStatus} realtimeState={realtimeState} lastSource={lastSource} />
+    </>
+  );
+}
+
+function DebugBar({
+  sessionStatus,
+  realtimeState,
+  lastSource,
+}: {
+  sessionStatus: string;
+  realtimeState: string;
+  lastSource: string;
+}) {
+  const rtTone =
+    realtimeState === "SUBSCRIBED"
+      ? "text-emerald-400"
+      : realtimeState.startsWith("ERROR")
+      ? "text-red-400"
+      : "text-amber-400";
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-50 bg-black/80 px-3 py-1.5 text-center font-mono text-[11px] text-white">
+      status: <span className="font-semibold">{sessionStatus}</span>
+      {" · "}rt: <span className={`font-semibold ${rtTone}`}>{realtimeState}</span>
+      {" · "}src: <span className="font-semibold">{lastSource}</span>
+    </div>
+  );
 }
 
 function LiveLink({
