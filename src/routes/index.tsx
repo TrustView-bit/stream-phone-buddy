@@ -56,6 +56,7 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     try {
+      let raw: MediaStream;
       try {
         raw = await getRawUserMedia({
           video: {
