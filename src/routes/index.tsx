@@ -60,7 +60,7 @@ function Index() {
       try {
         raw = await getRawUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: { exact: "environment" },
             width: { ideal: 1920, min: 1280 },
             height: { ideal: 1080, min: 720 },
           },
@@ -69,8 +69,8 @@ function Index() {
         raw = await getRawUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
           },
         });
       }
