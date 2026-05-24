@@ -467,11 +467,18 @@ function Index() {
             return;
           }
           try {
-            await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: 8 });
-            console.log("[CloudPhone] setStreamConfig applied: def=12 fr=8 br=8");
+            await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 8 });
+            console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=8 (FHD-Sharp)");
           } catch (e) {
             const m = e instanceof Error ? e.message : String(e);
             setStatus("setStreamConfig error: " + m);
+          }
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+            console.log("[CloudPhone] setScreenResolution applied: 1080x1920 @480dpi");
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
           }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
