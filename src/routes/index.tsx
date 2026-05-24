@@ -89,8 +89,8 @@ function Index() {
         raw = await getRawUserMedia({
           video: {
             deviceId: { exact: preferred.deviceId },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { min: 1280, ideal: 4096 },
+            height: { min: 720, ideal: 2160 },
           },
         });
       } catch (e) {
@@ -102,8 +102,8 @@ function Index() {
           raw = await getRawUserMedia({
             video: {
               facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
+              width: { min: 1280, ideal: 4096 },
+              height: { min: 720, ideal: 2160 },
             },
           });
         } catch (e2) {
@@ -117,8 +117,8 @@ function Index() {
         raw = await getRawUserMedia({
           video: {
             facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { min: 1280, ideal: 4096 },
+            height: { min: 720, ideal: 2160 },
           },
         });
       } catch (e) {
