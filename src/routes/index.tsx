@@ -100,7 +100,6 @@ function Index() {
             deviceId: { exact: preferred.deviceId },
             width: { ideal: 3840 },
             height: { ideal: 2160 },
-            frameRate: { ideal: 30 },
           },
         });
       } catch (e) {
