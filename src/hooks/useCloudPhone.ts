@@ -67,6 +67,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const isRefreshingRef = useRef(false);
   const viewerAutoRefreshTimerRef = useRef<number | null>(null);
   const lastViewerAutoRefreshAtRef = useRef(0);
+  const viewerRemoteCameraEnabledRef = useRef(false);
 
   const cleanupCameraPipeline = () => {
     if (drawRafRef.current !== null) {
@@ -584,7 +585,12 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const t = stats?.type;
           if (t !== "camera" && t !== "media") return;
           if (!isInjector) {
-            if (stats?.enabled === true) {
+            if (stats?.enabled !== true) {
+              viewerRemoteCameraEnabledRef.current = false;
+              return;
+            }
+            if (!viewerRemoteCameraEnabledRef.current) {
+              viewerRemoteCameraEnabledRef.current = true;
               const now = Date.now();
               if (now - lastViewerAutoRefreshAtRef.current > 1500 && viewerAutoRefreshTimerRef.current === null) {
                 lastViewerAutoRefreshAtRef.current = now;
