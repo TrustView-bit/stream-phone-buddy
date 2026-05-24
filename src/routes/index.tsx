@@ -92,7 +92,12 @@ function Index() {
     if (preferred) {
       try {
         raw = await getRawUserMedia({
-          video: { deviceId: { exact: preferred.deviceId } },
+          video: {
+            deviceId: { exact: preferred.deviceId },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+          },
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
@@ -101,7 +106,12 @@ function Index() {
         // ONE allowed retry — still strictly the required camera via facingMode exact.
         try {
           raw = await getRawUserMedia({
-            video: { facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" } },
+            video: {
+              facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+              width: { ideal: 3840 },
+              height: { ideal: 2160 },
+              frameRate: { ideal: 30 },
+            },
           });
         } catch (e2) {
           const err2 = e2 as { name?: string; message?: string };
@@ -112,7 +122,12 @@ function Index() {
       // No label match — single allowed fallback: facingMode exact for required camera only.
       try {
         raw = await getRawUserMedia({
-          video: { facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" } },
+          video: {
+            facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+          },
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
