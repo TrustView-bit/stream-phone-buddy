@@ -582,6 +582,27 @@ function Index() {
           >
             Tap to play
           </button>
+          {[1, 4, 8, 12].map((br) => (
+            <button
+              key={br}
+              onClick={async () => {
+                if (!engineRef.current) {
+                  setStatus("No engine");
+                  return;
+                }
+                try {
+                  await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: br });
+                  setStatus(`setStreamConfig OK: def=12 fr=8 br=${br}`);
+                } catch (e) {
+                  const m = e instanceof Error ? e.message : String(e);
+                  setStatus(`setStreamConfig br=${br} error: ${m}`);
+                }
+              }}
+              className="rounded-md border border-input bg-background px-3 py-2 text-xs font-medium hover:bg-accent"
+            >
+              BR {br}
+            </button>
+          ))}
         </div>
 
         <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
