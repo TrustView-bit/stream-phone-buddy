@@ -218,6 +218,26 @@ function LiveLink({
     })();
   }, [status, linkId]);
 
+  // On unload / unmount, free the session so the admin doesn't stay stuck.
+  // Uses fetch keepalive so it survives tab close on mobile.
+  useEffect(() => {
+    const reset = (reason: string) => {
+      if (!startedRef.current && !injectionMarkedRef.current) return;
+      console.log("[LinkPage] releasing session on leave", { reason, linkId });
+      beaconResetSession(linkId, `user-leave:${reason}`);
+      try { stop(); } catch (_) {}
+    };
+    const onPageHide = () => reset("pagehide");
+    const onBeforeUnload = () => reset("beforeunload");
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      reset("unmount");
+    };
+  }, [linkId, stop]);
+
   // Pre-connect waiting screen
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
     return (
