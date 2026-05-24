@@ -61,12 +61,16 @@ function Index() {
     // pin the camera into a low-res mode for the real acquisition below.
     let videoInputs: MediaDeviceInfo[] = [];
     try {
-      const temp = await getRawUserMedia({ video: true });
+      // Open the probe at HIGH res from the start, so Android doesn't pin the
+      // sensor to a low-res mode for the subsequent real acquisition.
+      const temp = await getRawUserMedia({
+        video: { width: { ideal: 3840 }, height: { ideal: 2160 } },
+      });
       temp.getTracks().forEach((t) => {
         try { t.stop(); } catch (_) {}
       });
-      // Small yield so the OS releases the camera handle before re-opening at high-res.
-      await new Promise((r) => setTimeout(r, 150));
+      // Give Android time to fully release the camera handle before re-opening.
+      await new Promise((r) => setTimeout(r, 500));
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoInputs = devices.filter((d) => d.kind === "videoinput");
       console.log("[CloudPhone] videoinputs:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
