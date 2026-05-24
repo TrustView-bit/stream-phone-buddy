@@ -305,7 +305,7 @@ function Index() {
         const dx = (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
         ctx.save();
-        if (REQUIRED_CAMERA === "front") {
+        if ((REQUIRED_CAMERA as string) === "front") {
           ctx.translate(canvas.width, 0);
           ctx.scale(-1, 1);
         }
