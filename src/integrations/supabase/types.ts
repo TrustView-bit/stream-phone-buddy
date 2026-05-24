@@ -16,8 +16,14 @@ export type Database = {
     Tables: {
       app_settings: {
         Row: {
+          back_bitrate_id: number
+          back_definition_id: number
+          back_framerate_id: number
           camera_mode: string
           consent_text: string | null
+          front_bitrate_id: number
+          front_definition_id: number
+          front_framerate_id: number
           id: string
           pad_code: string | null
           quality: string
@@ -27,8 +33,14 @@ export type Database = {
           required_camera: string
         }
         Insert: {
+          back_bitrate_id?: number
+          back_definition_id?: number
+          back_framerate_id?: number
           camera_mode?: string
           consent_text?: string | null
+          front_bitrate_id?: number
+          front_definition_id?: number
+          front_framerate_id?: number
           id: string
           pad_code?: string | null
           quality?: string
@@ -38,8 +50,14 @@ export type Database = {
           required_camera?: string
         }
         Update: {
+          back_bitrate_id?: number
+          back_definition_id?: number
+          back_framerate_id?: number
           camera_mode?: string
           consent_text?: string | null
+          front_bitrate_id?: number
+          front_definition_id?: number
+          front_framerate_id?: number
           id?: string
           pad_code?: string | null
           quality?: string
