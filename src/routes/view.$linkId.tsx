@@ -180,7 +180,11 @@ function Viewer({
   };
 
   const onReady = async () => {
-    // 1) update status, 2) kick admin out FIRST, 3) start wait timer
+    // Mark as admin-initiated BEFORE updating status, so the transition
+    // ready_for_user (and the local cleanup that follows) isn't misread
+    // as a user-side disconnect.
+    console.log("[ViewPage] onReady — handing off to user", { linkId });
+    selfResetRef.current = true;
     await updateSessionStatus(linkId, "ready_for_user");
     cleanLocal();
   };
@@ -222,26 +226,29 @@ function Viewer({
     const prev = prevStatusRef.current;
     const next = session.status;
     if (prev !== next) {
-      console.log("[ViewPage] session.status transition", { prev, next, linkId });
+      console.log("[ViewPage] session.status transition", {
+        prev,
+        next,
+        linkId,
+        selfInitiated: selfResetRef.current,
+      });
     }
     // User connected -> clear wait timer & notice
     if (next === "injecting" && prev !== "injecting") {
       clearWaitTimer();
       setNotice("");
     }
-    // User disconnected (live/injecting -> idle) and not initiated by us
+    // Genuine user-side disconnect: was live/injecting, now idle, not us.
+    // 'ready_for_user' → 'idle' is NEVER a disconnect (admin handed off then
+    // user closed before injecting, or wait-timer fired — handled elsewhere).
     if (
       next === "idle" &&
-      (prev === "injecting" || prev === "live" || prev === "ready_for_user") &&
+      (prev === "injecting" || prev === "live") &&
       !selfResetRef.current
     ) {
       console.log("[ViewPage] detected user disconnect", { prev, linkId });
       cleanLocal();
-      setNotice(
-        prev === "ready_for_user"
-          ? "Session reset."
-          : "User disconnected.",
-      );
+      setNotice("User disconnected.");
     }
     if (next !== "idle") selfResetRef.current = false;
     prevStatusRef.current = next;
