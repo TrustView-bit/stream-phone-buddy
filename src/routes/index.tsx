@@ -305,8 +305,10 @@ function Index() {
         const dx = (canvas.width - dw) / 2;
         const dy = (canvas.height - dh) / 2;
         ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
+        if ((REQUIRED_CAMERA as string) === "front") {
+          ctx.translate(canvas.width, 0);
+          ctx.scale(-1, 1);
+        }
         try {
           ctx.drawImage(video, dx, dy, dw, dh);
         } catch (e) {
@@ -590,10 +592,10 @@ function Index() {
             Tap to play
           </button>
           {([
-            { label: "FHD-Sharp", definitionId: 17, framerateId: 6, bitrateId: 8 },
-            { label: "FHD-Max", definitionId: 17, framerateId: 6, bitrateId: 11 },
-            { label: "2K-Sharp", definitionId: 18, framerateId: 5, bitrateId: 12 },
-            { label: "720-Stable", definitionId: 15, framerateId: 6, bitrateId: 5 },
+            { label: "Sharp-5fps", definitionId: 17, framerateId: 6, bitrateId: 11 },
+            { label: "Motion-10fps", definitionId: 17, framerateId: 7, bitrateId: 11 },
+            { label: "Motion-15fps", definitionId: 17, framerateId: 8, bitrateId: 11 },
+            { label: "Balanced-720", definitionId: 15, framerateId: 8, bitrateId: 8 },
           ] as const).map((cfg) => (
             <button
               key={cfg.label}
