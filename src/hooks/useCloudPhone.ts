@@ -523,7 +523,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
               return;
             }
             try {
-              await (engineRef.current as any).setStreamConfig({ definitionId, framerateId, bitrateId });
+              await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setStreamConfig error: " + m);
