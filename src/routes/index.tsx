@@ -467,6 +467,13 @@ function Index() {
             return;
           }
           try {
+            await (engineRef.current as any).setStreamConfig({ definitionId: 12, framerateId: 8, bitrateId: 8 });
+            console.log("[CloudPhone] setStreamConfig applied: def=12 fr=8 br=8");
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setStreamConfig error: " + m);
+          }
+          try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
             setStatus("Connected · camera: " + (s as any).status);
           } catch (_) {
