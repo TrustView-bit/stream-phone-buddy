@@ -520,32 +520,38 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         },
         onConnectSuccess: async () => {
           setStatus("Connected");
-          if (isInjector) {
-            try {
-              await engineRef.current!.startMediaStream(2);
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              setStatus("Camera injection error: " + message);
-              return;
-            }
-            try {
-              await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
-            } catch (e) {
-              const m = e instanceof Error ? e.message : String(e);
-              setStatus("setStreamConfig error: " + m);
-            }
-            try {
-              await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
-            } catch (e) {
-              const m = e instanceof Error ? e.message : String(e);
-              setStatus("setScreenResolution error: " + m);
-            }
-            try {
-              const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
-              setStatus("Connected · camera: " + (s as any).status);
-            } catch (_) {
-              setStatus("Connected · camera status unknown");
-            }
+          if (!isInjector) {
+            setTimeout(() => {
+              try {
+                (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+              } catch (_) {}
+            }, 1000);
+            return;
+          }
+          try {
+            await engineRef.current!.startMediaStream(2);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatus("Camera injection error: " + message);
+            return;
+          }
+          try {
+            await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setStreamConfig error: " + m);
+          }
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
+          }
+          try {
+            const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
+            setStatus("Connected · camera: " + (s as any).status);
+          } catch (_) {
+            setStatus("Connected · camera status unknown");
           }
         },
         onConnectFail: ({ msg }: { msg?: string }) => {
