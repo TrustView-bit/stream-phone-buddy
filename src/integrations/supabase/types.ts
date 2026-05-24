@@ -20,18 +20,30 @@ export type Database = {
           id: string
           pad_code: string | null
           quality: string
+          quality_bitrate_id: number
+          quality_definition_id: number
+          quality_framerate_id: number
+          required_camera: string
         }
         Insert: {
           consent_text?: string | null
           id: string
           pad_code?: string | null
           quality?: string
+          quality_bitrate_id?: number
+          quality_definition_id?: number
+          quality_framerate_id?: number
+          required_camera?: string
         }
         Update: {
           consent_text?: string | null
           id?: string
           pad_code?: string | null
           quality?: string
+          quality_bitrate_id?: number
+          quality_definition_id?: number
+          quality_framerate_id?: number
+          required_camera?: string
         }
         Relationships: []
       }

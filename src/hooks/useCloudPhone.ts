@@ -9,6 +9,9 @@ export interface UseCloudPhoneOptions {
   requiredCamera?: "back" | "front";
   padCode?: string;
   viewId?: string;
+  definitionId?: number;
+  framerateId?: number;
+  bitrateId?: number;
 }
 
 export interface UseCloudPhoneResult {
@@ -23,6 +26,9 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     requiredCamera = "back",
     padCode: padCodeOverride,
     viewId = "phoneBox",
+    definitionId = 17,
+    framerateId = 6,
+    bitrateId = 11,
   } = options;
 
   const [status, setStatus] = useState("Idle");
@@ -405,7 +411,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: 17, frameRate: 6, bitrate: 11 },
+        videoStream: { resolution: definitionId, frameRate: framerateId, bitrate: bitrateId },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
@@ -431,8 +437,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
               return;
             }
             try {
-              await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 11 });
-              console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=11 (FHD-Max)");
+              await (engineRef.current as any).setStreamConfig({ definitionId, framerateId, bitrateId });
+              console.log(`[CloudPhone] setStreamConfig applied: def=${definitionId} fr=${framerateId} br=${bitrateId}`);
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setStreamConfig error: " + m);
