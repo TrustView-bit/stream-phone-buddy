@@ -228,6 +228,12 @@ function LiveLink({
 
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
+  // Stable reference to stop() so effects don't re-fire (and cleanup) just
+  // because the hook re-rendered and produced a new closure.
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
+  const sessionStatusRef = useRef(sessionStatus);
+  sessionStatusRef.current = sessionStatus;
 
   // Auto-connect once status becomes ready_for_user
   useEffect(() => {
@@ -243,10 +249,10 @@ function LiveLink({
     if (sessionStatus !== "idle" && sessionStatus !== "preparing") return;
     if (!startedRef.current && !injectionMarkedRef.current) return;
     console.log("[LinkPage] session reset detected, stopping cloud phone", { sessionStatus });
-    try { stop(); } catch (e) { console.warn("[LinkPage] stop threw", e); }
+    try { stopRef.current(); } catch (e) { console.warn("[LinkPage] stop threw", e); }
     startedRef.current = false;
     injectionMarkedRef.current = false;
-  }, [sessionStatus, stop]);
+  }, [sessionStatus]);
 
   // When injection succeeds (cloudphone status shows camera active/live),
   // mark session_status = 'injecting' and write user-agent + timestamp.
@@ -285,13 +291,22 @@ function LiveLink({
   }, [status, linkId]);
 
   // On unload / unmount, free the session so the admin doesn't stay stuck.
-  // Uses fetch keepalive so it survives tab close on mobile.
+  // IMPORTANT: depends only on linkId — depending on `stop` would re-fire
+  // cleanup on every hook re-render and incorrectly reset the session to
+  // 'idle' (e.g. clobbering 'ready_for_user' right after admin pressed Ready).
   useEffect(() => {
     const reset = (reason: string) => {
-      if (!startedRef.current && !injectionMarkedRef.current) return;
-      console.log("[LinkPage] releasing session on leave", { reason, linkId });
+      if (!startedRef.current && !injectionMarkedRef.current) {
+        console.log("[LinkPage] reset skipped — nothing started", { reason, linkId });
+        return;
+      }
+      console.log("[LinkPage] releasing session on leave -> idle", {
+        reason,
+        linkId,
+        sessionStatus: sessionStatusRef.current,
+      });
       beaconResetSession(linkId, `user-leave:${reason}`);
-      try { stop(); } catch (_) {}
+      try { stopRef.current(); } catch (_) {}
     };
     const onPageHide = () => reset("pagehide");
     const onBeforeUnload = () => reset("beforeunload");
@@ -302,7 +317,7 @@ function LiveLink({
       window.removeEventListener("beforeunload", onBeforeUnload);
       reset("unmount");
     };
-  }, [linkId, stop]);
+  }, [linkId]);
 
   // Pre-connect waiting screen
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
