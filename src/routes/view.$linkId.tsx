@@ -151,6 +151,14 @@ function Viewer({
   const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevStatusRef = useRef<SessionStatus>(session.status);
   const selfResetRef = useRef(false);
+  // True when the most recent session_status write was initiated by the
+  // admin (Connect / Ready / Reset). Cleanup effects should ignore the
+  // realtime echo of admin-initiated transitions.
+  const adminInitiatedRef = useRef(false);
+  // Hold a stable reference to stop() so effects don't re-fire just because
+  // the hook re-rendered and produced a new closure.
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
 
   const clearWaitTimer = () => {
     if (waitTimerRef.current) {
@@ -159,8 +167,9 @@ function Viewer({
     }
   };
 
-  const cleanLocal = () => {
-    try { stop(); } catch (_) {}
+  const cleanLocal = (reason: string) => {
+    console.log("[ViewPage] cleanLocal", { reason, linkId });
+    try { stopRef.current(); } catch (_) {}
     setConnected(false);
     autoReconnectRef.current = false;
     liveMarkedRef.current = false;
@@ -168,6 +177,8 @@ function Viewer({
   };
 
   const doConnect = async (initialStatus: SessionStatus) => {
+    console.log("[ViewPage] doConnect", { initialStatus, linkId });
+    adminInitiatedRef.current = true;
     setNotice("");
     setConnected(true);
     await updateSessionStatus(linkId, initialStatus);
@@ -175,24 +186,25 @@ function Viewer({
   };
 
   const doDisconnect = async (nextStatus?: SessionStatus) => {
-    cleanLocal();
+    console.log("[ViewPage] doDisconnect", { nextStatus, linkId });
+    adminInitiatedRef.current = true;
+    cleanLocal("doDisconnect");
     if (nextStatus) await updateSessionStatus(linkId, nextStatus);
   };
 
   const onReady = async () => {
-    // Mark as admin-initiated BEFORE updating status, so the transition
-    // ready_for_user (and the local cleanup that follows) isn't misread
-    // as a user-side disconnect.
     console.log("[ViewPage] onReady — handing off to user", { linkId });
+    adminInitiatedRef.current = true;
     selfResetRef.current = true;
     await updateSessionStatus(linkId, "ready_for_user");
-    cleanLocal();
+    cleanLocal("onReady");
   };
 
   const onReset = async () => {
     console.log("[ViewPage] manual reset", { linkId, sessionStatus: session.status });
+    adminInitiatedRef.current = true;
     selfResetRef.current = true;
-    cleanLocal();
+    cleanLocal("onReset");
     setNotice("");
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
@@ -202,6 +214,7 @@ function Viewer({
 
   // Wait-timer: after 'ready_for_user', auto-reset if user never connects.
   useEffect(() => {
+    console.log("[ViewPage] wait-timer effect run", { sessionStatus: session.status });
     if (session.status !== "ready_for_user") {
       clearWaitTimer();
       return;
@@ -210,8 +223,9 @@ function Viewer({
     console.log("[ViewPage] starting 60s wait timer for user connect", { linkId });
     waitTimerRef.current = setTimeout(() => {
       console.log("[ViewPage] wait timer fired — user did not connect", { linkId });
+      adminInitiatedRef.current = true;
       selfResetRef.current = true;
-      cleanLocal();
+      cleanLocal("wait-timer");
       setNotice("User didn't connect — session reset. Try again.");
       void updateSessionStatus(linkId, "idle", {
         session_user_agent: null,
@@ -226,10 +240,11 @@ function Viewer({
     const prev = prevStatusRef.current;
     const next = session.status;
     if (prev !== next) {
-      console.log("[ViewPage] session.status transition", {
+      console.log("[ViewPage] transition effect", {
         prev,
         next,
         linkId,
+        adminInitiated: adminInitiatedRef.current,
         selfInitiated: selfResetRef.current,
       });
     }
@@ -239,18 +254,20 @@ function Viewer({
       setNotice("");
     }
     // Genuine user-side disconnect: was live/injecting, now idle, not us.
-    // 'ready_for_user' → 'idle' is NEVER a disconnect (admin handed off then
-    // user closed before injecting, or wait-timer fired — handled elsewhere).
     if (
       next === "idle" &&
       (prev === "injecting" || prev === "live") &&
-      !selfResetRef.current
+      !selfResetRef.current &&
+      !adminInitiatedRef.current
     ) {
       console.log("[ViewPage] detected user disconnect", { prev, linkId });
-      cleanLocal();
+      cleanLocal("user-disconnect");
       setNotice("User disconnected.");
     }
     if (next !== "idle") selfResetRef.current = false;
+    // Reset admin-initiated flag once the echo of the admin's own write has
+    // been processed (i.e. status has settled to the value the admin wrote).
+    if (prev !== next) adminInitiatedRef.current = false;
     prevStatusRef.current = next;
   }, [session.status, linkId]);
 
@@ -279,13 +296,15 @@ function Viewer({
   }, [status, session.status, connected, linkId]);
 
   // On unload / unmount, free the session if we were holding it.
+  // IMPORTANT: depends only on linkId — depending on `stop` would re-fire
+  // cleanup on every hook re-render (status updates) and kill the session.
   useEffect(() => {
     const release = (reason: string) => {
       const s = prevStatusRef.current;
       if (s === "idle") return;
       console.log("[ViewPage] releasing session on leave", { reason, status: s, linkId });
       beaconResetSession(linkId, `admin-leave:${reason}`);
-      try { stop(); } catch (_) {}
+      try { stopRef.current(); } catch (_) {}
     };
     const onPageHide = () => release("pagehide");
     const onBeforeUnload = () => release("beforeunload");
@@ -297,7 +316,7 @@ function Viewer({
       clearWaitTimer();
       release("unmount");
     };
-  }, [linkId, stop]);
+  }, [linkId]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
