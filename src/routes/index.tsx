@@ -53,65 +53,104 @@ function Index() {
     setStatus("Requesting token…");
     setInjectionTrace(null);
     cleanupCameraPipeline();
+    const REQUIRED_CAMERA: "back" | "front" = "back";
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+
+    // Step 1: unlock device labels via a temp stream, then stop it.
+    let videoInputs: MediaDeviceInfo[] = [];
     try {
-      let raw: MediaStream;
-      let exactErrorInfo = "";
+      const temp = await getRawUserMedia({ video: true });
+      temp.getTracks().forEach((t) => t.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoInputs = devices.filter((d) => d.kind === "videoinput");
+      console.log("[CloudPhone] videoinputs:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
+    } catch (e) {
+      console.warn("[CloudPhone] initial permission probe failed", e);
+      setStatus("Camera permission denied");
+      return;
+    }
+
+    const deviceListStr = videoInputs.map((d, i) => `  [${i}] ${d.label || "(no label)"}`).join("\n");
+    const matchBack = (l: string) => {
+      const s = l.toLowerCase();
+      return /(back|rear|environment)/.test(s) && !/(front|user|face)/.test(s);
+    };
+    const matchFront = (l: string) => /(front|user|face)/.test(l.toLowerCase());
+    const matcher = REQUIRED_CAMERA === "back" ? matchBack : matchFront;
+    const matches = videoInputs.filter((d) => matcher(d.label));
+    const preferred = matches.find((d) => /(main|\b0\b)/i.test(d.label)) ?? matches[0];
+
+    let raw: MediaStream | null = null;
+    let acquireError = "";
+
+    if (preferred) {
       try {
         raw = await getRawUserMedia({
           video: {
-            facingMode: { exact: "environment" },
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
+            deviceId: { exact: preferred.deviceId },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
-        exactErrorInfo = `back-camera exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
-        console.warn("[CloudPhone]", exactErrorInfo);
-        setStatus(exactErrorInfo);
+        acquireError = `deviceId exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+        console.warn("[CloudPhone]", acquireError);
+        // ONE allowed retry — still strictly the required camera via facingMode exact.
+        try {
+          raw = await getRawUserMedia({
+            video: {
+              facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+          });
+        } catch (e2) {
+          const err2 = e2 as { name?: string; message?: string };
+          acquireError += ` | facingMode exact failed: ${err2?.name ?? "Error"}: ${err2?.message ?? String(e2)}`;
+        }
+      }
+    } else {
+      // No label match — single allowed fallback: facingMode exact for required camera only.
+      try {
         raw = await getRawUserMedia({
           video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
+            facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         });
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        acquireError = `no label match; facingMode exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
       }
-      rawCameraRef.current = raw;
-      const rawTrack = raw.getVideoTracks()[0];
-      (rawTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
-      const settings = rawTrack?.getSettings();
-      console.log("Camera settings:", settings);
-      setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
+    }
 
-      // Enumerate video devices (labels populated after permission granted)
-      let videoInputCount = 0;
-      let deviceListStr = "";
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter((d) => d.kind === "videoinput");
-        videoInputCount = videoInputs.length;
-        console.log("[CloudPhone] videoinput devices:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
-        deviceListStr = videoInputs.map((d, i) => `  [${i}] ${d.label || "(no label)"}`).join("\n");
-      } catch (enumErr) {
-        console.warn("[CloudPhone] enumerateDevices failed", enumErr);
-      }
-
-      const facing = settings?.facingMode ?? "(unknown)";
-      const label = rawTrack?.label ?? "(no label)";
-      setVideoDebug(
-        `Camera: ${settings?.width ?? "?"}×${settings?.height ?? "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
-        `facingMode: ${facing}\n` +
-        `label: ${label}\n` +
-        `videoinputs: ${videoInputCount}\n${deviceListStr}` +
-        (exactErrorInfo ? `\n${exactErrorInfo}` : "")
-      );
-    } catch (_) {
-      setStatus("Camera permission denied");
+    if (!raw) {
+      const msg = `Required ${REQUIRED_CAMERA} camera not available`;
+      console.warn("[CloudPhone]", msg, acquireError);
+      setStatus(msg);
+      setVideoDebug(`${msg}\n${acquireError}\nvideoinputs: ${videoInputs.length}\n${deviceListStr}`);
       return;
     }
+
+    rawCameraRef.current = raw;
+    const rawTrackInit = raw.getVideoTracks()[0];
+    (rawTrackInit as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
+    const settings = rawTrackInit?.getSettings();
+    console.log("Camera settings:", settings);
+    setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
+    const facing = settings?.facingMode ?? "(unknown)";
+    const chosenLabel = rawTrackInit?.label ?? "(no label)";
+    setVideoDebug(
+      `Required: ${REQUIRED_CAMERA}\n` +
+      `Chosen label: ${chosenLabel}\n` +
+      `facingMode: ${facing}\n` +
+      `Camera: ${settings?.width ?? "?"}×${settings?.height ?? "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
+      `videoinputs: ${videoInputs.length}\n${deviceListStr}` +
+      (acquireError ? `\n${acquireError}` : "")
+    );
 
 
     // The SDK does not accept an app-supplied MediaStream in startMediaStream().
