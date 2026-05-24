@@ -63,13 +63,21 @@ function ViewPage() {
   }, [linkId]);
 
   useEffect(() => {
+    const filter = `id=eq.${linkId}`;
     const channel = supabase
       .channel(`view-session-${linkId}`)
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "links", filter: `id=eq.${linkId}` },
+        { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
           const n = payload.new as any;
+          console.log("[ViewPage] realtime links UPDATE received", {
+            linkId,
+            filter,
+            oldStatus: (payload.old as any)?.session_status,
+            newStatus: n?.session_status,
+            payload,
+          });
           setSession({
             status: (n?.session_status as SessionStatus) ?? "idle",
             userAgent: n?.session_user_agent ?? null,
@@ -77,7 +85,9 @@ function ViewPage() {
           });
         },
       )
-      .subscribe();
+      .subscribe((status, error) => {
+        console.log("[ViewPage] realtime subscription status", { linkId, filter, status, error });
+      });
     return () => {
       supabase.removeChannel(channel);
     };
@@ -101,7 +111,7 @@ function ViewPage() {
 }
 
 async function updateSessionStatus(linkId: string, status: SessionStatus, extra?: Record<string, any>) {
-  await supabase
+  const result = await supabase
     .from("links")
     .update({
       session_status: status,
@@ -109,6 +119,12 @@ async function updateSessionStatus(linkId: string, status: SessionStatus, extra?
       ...(extra ?? {}),
     } as any)
     .eq("id", linkId);
+  if (result.error) {
+    console.error("[ViewPage] session_status update failed", { linkId, status, error: result.error });
+    return false;
+  }
+  console.log("[ViewPage] session_status update succeeded", { linkId, status });
+  return true;
 }
 
 function Viewer({
