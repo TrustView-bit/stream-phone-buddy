@@ -175,7 +175,8 @@ function Index() {
     }
 
     const settings = rawTrackInit?.getSettings();
-    console.log("Camera settings (final):", settings);
+    console.log("[CloudPhone] track settings (final):", JSON.stringify(settings, null, 2));
+    console.log("[CloudPhone] track settings (object):", settings);
     setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
     const facing = settings?.facingMode ?? "(unknown)";
     const chosenLabel = rawTrackInit?.label ?? "(no label)";
