@@ -54,6 +54,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   cameraModeRef.current = cameraMode;
   const requiredCameraRef = useRef<Facing>(requiredCamera);
   requiredCameraRef.current = requiredCamera;
+  const backQualityRef = useRef<QualityProfile>(backQuality);
+  backQualityRef.current = backQuality;
+  const frontQualityRef = useRef<QualityProfile>(frontQuality);
+  frontQualityRef.current = frontQuality;
 
   // Switch coordination
   const switchInProgressRef = useRef(false);
