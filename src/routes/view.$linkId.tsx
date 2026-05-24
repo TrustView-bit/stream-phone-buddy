@@ -57,7 +57,7 @@ function ViewPage() {
 }
 
 function Viewer({ padCode, label }: { padCode: string; label: string }) {
-  const { status, start, stop } = useCloudPhone({
+  const { status, start, stop, refreshStream } = useCloudPhone({
     mode: "viewer",
     padCode,
     viewId: "phoneBox",
