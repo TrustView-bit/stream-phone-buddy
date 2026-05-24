@@ -153,7 +153,8 @@ function Index() {
     let applyErrorInfo = "";
     try {
       const caps = rawTrackInit.getCapabilities?.() ?? {};
-      console.log("[CloudPhone] track capabilities:", caps);
+      console.log("[CloudPhone] track capabilities (full):", JSON.stringify(caps, null, 2));
+      console.log("[CloudPhone] track capabilities (object):", caps);
       const maxW = caps.width?.max;
       const maxH = caps.height?.max;
       capsInfo = `caps: w=${caps.width?.min ?? "?"}–${maxW ?? "?"} h=${caps.height?.min ?? "?"}–${maxH ?? "?"}`;
