@@ -26,7 +26,7 @@ export interface UseCloudPhoneResult {
   status: string;
   start: () => Promise<void>;
   stop: () => void;
-  refreshStream: () => void;
+  refreshStream: () => Promise<void>;
 }
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
@@ -64,6 +64,9 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const switchInProgressRef = useRef(false);
   const pendingSwitchRef = useRef<Facing | null>(null);
   const lastSwitchAtRef = useRef(0);
+  const isRefreshingRef = useRef(false);
+  const viewerAutoRefreshTimerRef = useRef<number | null>(null);
+  const lastViewerAutoRefreshAtRef = useRef(0);
 
   const cleanupCameraPipeline = () => {
     if (drawRafRef.current !== null) {
