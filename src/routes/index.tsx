@@ -15,10 +15,6 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const [status, setStatus] = useState("Idle");
-  const [camSettings, setCamSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
-  const [canvasSettings, setCanvasSettings] = useState<{ width?: number; height?: number; aspectRatio?: number } | null>(null);
-  const [injectionTrace, setInjectionTrace] = useState<string | null>(null);
-  const [videoDebug, setVideoDebug] = useState<string>("video: not started");
   const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const engineRef = useRef<ArmcloudEngine | null>(null);
   const rawCameraRef = useRef<MediaStream | null>(null);
@@ -51,7 +47,6 @@ function Index() {
       await new Promise((r) => setTimeout(r, 2000));
     }
     setStatus("Requesting token…");
-    setInjectionTrace(null);
     cleanupCameraPipeline();
     const REQUIRED_CAMERA: "back" | "front" = "back";
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
@@ -140,7 +135,6 @@ function Index() {
       const msg = `Required ${REQUIRED_CAMERA} camera not available`;
       console.warn("[CloudPhone]", msg, acquireError);
       setStatus(msg);
-      setVideoDebug(`${msg}\n${acquireError}\nvideoinputs: ${videoInputs.length}\n${deviceListStr}`);
       return;
     }
 
@@ -149,7 +143,6 @@ function Index() {
     (rawTrackInit as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
 
     // Push to the camera's true maximum resolution via capabilities.
-    let capsInfo = "";
     let applyErrorInfo = "";
     try {
       const caps = rawTrackInit.getCapabilities?.() ?? {};
@@ -157,7 +150,6 @@ function Index() {
       console.log("[CloudPhone] track capabilities (object):", caps);
       const maxW = caps.width?.max;
       const maxH = caps.height?.max;
-      capsInfo = `caps: w=${caps.width?.min ?? "?"}–${maxW ?? "?"} h=${caps.height?.min ?? "?"}–${maxH ?? "?"}`;
       if (maxW && maxH) {
         try {
           await rawTrackInit.applyConstraints({
@@ -177,24 +169,15 @@ function Index() {
     const settings = rawTrackInit?.getSettings();
     console.log("[CloudPhone] track settings (final):", JSON.stringify(settings, null, 2));
     console.log("[CloudPhone] track settings (object):", settings);
-    setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
-    const facing = settings?.facingMode ?? "(unknown)";
-    const chosenLabel = rawTrackInit?.label ?? "(no label)";
     const finalW = settings?.width ?? 0;
     const finalH = settings?.height ?? 0;
     const lowRes = finalW > 0 && finalW < 1280;
     if (lowRes) {
       setStatus(`Low camera resolution: ${finalW}×${finalH} (hardware max)`);
     }
-    setVideoDebug(
-      `Required: ${REQUIRED_CAMERA}\n` +
-      `Chosen label: ${chosenLabel}\n` +
-      `facingMode: ${facing}\n` +
-      `Camera (final): ${finalW || "?"}×${finalH || "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
-      `${capsInfo}\n` +
-      `videoinputs: ${videoInputs.length}\n${deviceListStr}` +
-      (acquireError ? `\n${acquireError}` : "") +
-      (applyErrorInfo ? `\n${applyErrorInfo}` : "")
+    console.log(
+      `[CloudPhone] Camera acquired: ${REQUIRED_CAMERA} | ${rawTrackInit?.label ?? "(no label)"} | ` +
+      `${finalW || "?"}×${finalH || "?"} | facingMode=${settings?.facingMode ?? "?"}`
     );
 
 
@@ -232,15 +215,12 @@ function Index() {
     document.body.appendChild(video);
     hiddenVideoRef.current = video;
 
-    setVideoDebug(`video: created, readyState=${video.readyState}`);
-
     // Kick off play() inside the user-gesture-rooted call stack. Don't await yet,
     // so awaiting doesn't break the gesture on mobile.
     let playError: string | null = null;
     const playPromise = video.play().catch((e) => {
       playError = e instanceof Error ? e.message : String(e);
       console.warn("[CloudPhone] video.play() rejected", e);
-      setVideoDebug(`video: play() error: ${playError}`);
     });
 
     const waitForData = new Promise<void>((resolve) => {
@@ -260,9 +240,7 @@ function Index() {
 
     await playPromise;
     await waitForData;
-    setVideoDebug(
-      `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused}${playError ? ` playErr=${playError}` : ""}`,
-    );
+    console.log(`[CloudPhone] video ready: ${video.videoWidth}×${video.videoHeight} rs=${video.readyState}`);
 
     const CANVAS_W = 1080;
     const CANVAS_H = 1920;
@@ -289,10 +267,7 @@ function Index() {
     // Paint one frame BEFORE captureStream so the captured track has content immediately.
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(0, 0, 96, 96);
 
-    let frameCount = 0;
     const draw = () => {
       const sw = video.videoWidth;
       const sh = video.videoHeight;
@@ -316,16 +291,6 @@ function Index() {
         }
         ctx.restore();
       }
-      // Red diagnostic square — confirms RAF loop is running.
-      ctx.fillStyle = "#ff0000";
-      ctx.fillRect(0, 0, 96, 96);
-      frameCount++;
-      if (frameCount % 10 === 0) {
-        const sameCanvas = (window as any).__cloudPhoneDrawCanvas === canvas;
-        setVideoDebug(
-          `video: rs=${video.readyState} ${video.videoWidth}×${video.videoHeight} paused=${video.paused} frames=${frameCount} sameCanvas=${sameCanvas}${playError ? ` playErr=${playError}` : ""}`,
-        );
-      }
       drawRafRef.current = requestAnimationFrame(draw);
     };
     draw();
@@ -337,11 +302,7 @@ function Index() {
     (portraitTrack as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
     canvasCameraRef.current = portrait;
     const cs = portraitTrack?.getSettings();
-    setCanvasSettings({
-      width: cs?.width ?? CANVAS_W,
-      height: cs?.height ?? CANVAS_H,
-      aspectRatio: cs?.aspectRatio ?? CANVAS_W / CANVAS_H,
-    });
+    console.log("[CloudPhone] canvas capture settings:", cs);
 
     rawTrack.addEventListener("ended", cleanupCameraPipeline);
 
@@ -378,10 +339,7 @@ function Index() {
           source: "canvas-captureStream",
           settings: injectedSettings,
         });
-        setInjectionTrace(
-          `SDK getUserMedia: CANVAS ${injectedSettings.width ?? "?"}×${injectedSettings.height ?? "?"}`,
-        );
-        setStatus("Streaming canvas (portrait) to cloud phone");
+        setStatus("Camera active");
         return sdkStream;
       };
       w.__cloudPhoneGumPatchVersion = "canvas-v4-visible";
@@ -393,11 +351,6 @@ function Index() {
         const source = (track as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
         const settings = track.getSettings?.();
         console.log("[CloudPhone] RTCPeerConnection.addTrack", { kind: track.kind, source, settings });
-        if (track.kind === "video") {
-          setInjectionTrace((prev) =>
-            `${prev ?? "SDK getUserMedia: not observed"}\nWebRTC addTrack: ${source} ${settings?.width ?? "?"}×${settings?.height ?? "?"}`,
-          );
-        }
         return w.__cloudPhoneOrigAddTrack!.call(this, track, ...streams);
       };
       w.__cloudPhoneAddTrackPatched = true;
@@ -413,11 +366,6 @@ function Index() {
           const source = (trackOrKind as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource ?? "unknown";
           const settings = trackOrKind.getSettings?.();
           console.log("[CloudPhone] RTCPeerConnection.addTransceiver", { kind: trackOrKind.kind, source, settings });
-          if (trackOrKind.kind === "video") {
-            setInjectionTrace((prev) =>
-              `${prev ?? "SDK getUserMedia: not observed"}\nWebRTC addTransceiver: ${source} ${settings?.width ?? "?"}×${settings?.height ?? "?"}`,
-            );
-          }
         }
         return w.__cloudPhoneOrigAddTransceiver!.call(this, trackOrKind, init);
       };
@@ -443,7 +391,7 @@ function Index() {
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: 17, frameRate: 6, bitrate: 8 },
+        videoStream: { resolution: 17, frameRate: 6, bitrate: 11 },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
@@ -465,12 +413,11 @@ function Index() {
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             setStatus("Camera injection error: " + message);
-            setInjectionTrace((prev) => `${prev ?? "SDK camera injection attempted"}\nError: ${message}`);
             return;
           }
           try {
-            await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 8 });
-            console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=8 (FHD-Sharp)");
+            await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 11 });
+            console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=11 (FHD-Max)");
           } catch (e) {
             const m = e instanceof Error ? e.message : String(e);
             setStatus("setStreamConfig error: " + m);
@@ -624,24 +571,6 @@ function Index() {
           {status}
         </pre>
 
-        {camSettings && (
-          <div className="w-full text-center text-xs text-muted-foreground">
-            Camera: {camSettings.width}×{camSettings.height} (aspect {camSettings.aspectRatio?.toFixed(3) ?? "n/a"})
-          </div>
-        )}
-        {canvasSettings && (
-          <div className="w-full text-center text-xs text-muted-foreground">
-            Canvas stream: {canvasSettings.width}×{canvasSettings.height} (aspect {canvasSettings.aspectRatio?.toFixed(3) ?? "n/a"})
-          </div>
-        )}
-        <div className="w-full text-center text-xs text-muted-foreground">
-          {videoDebug}
-        </div>
-        {injectionTrace && (
-          <pre className="w-full whitespace-pre-wrap break-all text-left text-xs text-muted-foreground">
-            {injectionTrace}
-          </pre>
-        )}
       </div>
     </div>
   );
