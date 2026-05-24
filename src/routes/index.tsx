@@ -267,15 +267,15 @@ function Index() {
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
-    // Mobile browsers (esp. iOS Safari) require canvas in DOM for captureStream to update.
-    // Render the canvas visibly at real size so mobile browsers composite and capture it.
+    // Mobile browsers (esp. iOS Safari) require canvas in DOM AND composited at real size
+    // for captureStream to keep emitting frames. Push off-screen at full size — never
+    // use display:none, visibility:hidden, 1px size, or opacity:0.
     canvas.style.position = "fixed";
-    canvas.style.right = "8px";
-    canvas.style.bottom = "8px";
-    canvas.style.width = "180px";
-    canvas.style.height = "320px";
+    canvas.style.left = "-10000px";
+    canvas.style.top = "0";
+    canvas.style.width = "360px";
+    canvas.style.height = "640px";
     canvas.style.opacity = "1";
-    canvas.style.border = "2px solid #ff0000";
     canvas.style.background = "#000";
     canvas.style.pointerEvents = "none";
     canvas.style.zIndex = "9999";
