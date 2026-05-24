@@ -57,11 +57,16 @@ function Index() {
     const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
     const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
-    // Step 1: unlock device labels via a temp stream, then stop it.
+    // Step 1: unlock device labels via a temp stream, then FULLY stop it so it doesn't
+    // pin the camera into a low-res mode for the real acquisition below.
     let videoInputs: MediaDeviceInfo[] = [];
     try {
       const temp = await getRawUserMedia({ video: true });
-      temp.getTracks().forEach((t) => t.stop());
+      temp.getTracks().forEach((t) => {
+        try { t.stop(); } catch (_) {}
+      });
+      // Small yield so the OS releases the camera handle before re-opening at high-res.
+      await new Promise((r) => setTimeout(r, 150));
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoInputs = devices.filter((d) => d.kind === "videoinput");
       console.log("[CloudPhone] videoinputs:", videoInputs.map((d) => ({ label: d.label, deviceId: d.deviceId })));
@@ -87,7 +92,12 @@ function Index() {
     if (preferred) {
       try {
         raw = await getRawUserMedia({
-          video: { deviceId: { exact: preferred.deviceId } },
+          video: {
+            deviceId: { exact: preferred.deviceId },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+          },
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
@@ -96,7 +106,12 @@ function Index() {
         // ONE allowed retry — still strictly the required camera via facingMode exact.
         try {
           raw = await getRawUserMedia({
-            video: { facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" } },
+            video: {
+              facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+              width: { ideal: 3840 },
+              height: { ideal: 2160 },
+              frameRate: { ideal: 30 },
+            },
           });
         } catch (e2) {
           const err2 = e2 as { name?: string; message?: string };
@@ -107,7 +122,12 @@ function Index() {
       // No label match — single allowed fallback: facingMode exact for required camera only.
       try {
         raw = await getRawUserMedia({
-          video: { facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" } },
+          video: {
+            facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
+            width: { ideal: 3840 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 30 },
+          },
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
@@ -247,15 +267,15 @@ function Index() {
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
-    // Mobile browsers (esp. iOS Safari) require canvas in DOM for captureStream to update.
-    // Render the canvas visibly at real size so mobile browsers composite and capture it.
+    // Mobile browsers (esp. iOS Safari) require canvas in DOM AND composited at real size
+    // for captureStream to keep emitting frames. Push off-screen at full size — never
+    // use display:none, visibility:hidden, 1px size, or opacity:0.
     canvas.style.position = "fixed";
-    canvas.style.right = "8px";
-    canvas.style.bottom = "8px";
-    canvas.style.width = "180px";
-    canvas.style.height = "320px";
+    canvas.style.left = "-10000px";
+    canvas.style.top = "0";
+    canvas.style.width = "360px";
+    canvas.style.height = "640px";
     canvas.style.opacity = "1";
-    canvas.style.border = "2px solid #ff0000";
     canvas.style.background = "#000";
     canvas.style.pointerEvents = "none";
     canvas.style.zIndex = "9999";
