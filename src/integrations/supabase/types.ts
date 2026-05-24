@@ -68,6 +68,48 @@ export type Database = {
         }
         Relationships: []
       }
+      links: {
+        Row: {
+          back_bitrate_id: number
+          back_definition_id: number
+          back_framerate_id: number
+          camera_mode: string
+          created_at: string
+          front_bitrate_id: number
+          front_definition_id: number
+          front_framerate_id: number
+          id: string
+          label: string
+          pad_code: string
+        }
+        Insert: {
+          back_bitrate_id?: number
+          back_definition_id?: number
+          back_framerate_id?: number
+          camera_mode?: string
+          created_at?: string
+          front_bitrate_id?: number
+          front_definition_id?: number
+          front_framerate_id?: number
+          id: string
+          label: string
+          pad_code: string
+        }
+        Update: {
+          back_bitrate_id?: number
+          back_definition_id?: number
+          back_framerate_id?: number
+          camera_mode?: string
+          created_at?: string
+          front_bitrate_id?: number
+          front_definition_id?: number
+          front_framerate_id?: number
+          id?: string
+          label?: string
+          pad_code?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

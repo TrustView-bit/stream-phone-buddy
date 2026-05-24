@@ -472,7 +472,13 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       }
     }
 
-    const { data, error } = await supabase.functions.invoke("cloudphone-token", { body: {} });
+    if (!padCodeOverride) {
+      setStatus("Missing pad code");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke("cloudphone-token", {
+      body: { padCode: padCodeOverride },
+    });
     if (error) {
       setStatus("Token error: " + error.message);
       return;

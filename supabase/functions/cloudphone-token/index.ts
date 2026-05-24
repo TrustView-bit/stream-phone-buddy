@@ -74,9 +74,51 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
-    const { data: setting } = await supa
-      .from("app_settings").select("pad_code").eq("id", "default").single();
-    const padCode = setting?.pad_code ?? "APP63U6GYP7UDGQV";
+
+    let payload: { padCode?: string; linkId?: string } = {};
+    try {
+      payload = await req.json();
+    } catch (_) {
+      payload = {};
+    }
+
+    // Resolve padCode: prefer linkId lookup, then explicit padCode, then validate.
+    let padCode: string | null = null;
+
+    if (payload.linkId) {
+      const { data: link } = await supa
+        .from("links")
+        .select("pad_code")
+        .eq("id", payload.linkId)
+        .maybeSingle();
+      if (!link) {
+        return new Response(JSON.stringify({ error: "Invalid link" }), {
+          status: 404,
+          headers: { ...cors, "content-type": "application/json" },
+        });
+      }
+      padCode = link.pad_code;
+    } else if (payload.padCode) {
+      // Validate the padCode exists in the links table — never mint for arbitrary phones.
+      const { data: link } = await supa
+        .from("links")
+        .select("pad_code")
+        .eq("pad_code", payload.padCode)
+        .maybeSingle();
+      if (!link) {
+        return new Response(JSON.stringify({ error: "Pad code not registered" }), {
+          status: 403,
+          headers: { ...cors, "content-type": "application/json" },
+        });
+      }
+      padCode = link.pad_code;
+    } else {
+      return new Response(JSON.stringify({ error: "Missing linkId or padCode" }), {
+        status: 400,
+        headers: { ...cors, "content-type": "application/json" },
+      });
+    }
+
     const body = JSON.stringify({ padCode });
     const headers = await signPost(sk, ak, body);
     const r = await fetch(`${API_BASE}${TOKEN_PATH}`, { method: "POST", headers, body });
