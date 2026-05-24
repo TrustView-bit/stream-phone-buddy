@@ -641,9 +641,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       }
       isRefreshingRef.current = true;
       try {
-        stopRef.current();
-        await new Promise((r) => setTimeout(r, 800));
-        await startRef.current?.();
+        // Kick the video subscription without leaving the room.
+        (engineRef.current as any)?.pauseAllSubscribedStream?.(2);
+        await new Promise((r) => setTimeout(r, 400));
+        (engineRef.current as any)?.resumeAllSubscribedStream?.(2);
       } catch (e) {
         console.warn("[CloudPhone] viewer refresh failed", e);
       } finally {
@@ -655,6 +656,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
     } catch (_) {}
   };
+
 
   return { status, start, stop, refreshStream };
 }
