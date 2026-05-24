@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useCloudPhone, type CameraMode } from "@/hooks/useCloudPhone";
+import { useCloudPhone, type CameraMode, type QualityProfile } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -16,19 +16,17 @@ export const Route = createFileRoute("/")({
 interface AppSettings {
   camera_mode: CameraMode;
   required_camera: "back" | "front";
-  quality_definition_id: number;
-  quality_framerate_id: number;
-  quality_bitrate_id: number;
   pad_code: string | null;
+  backQuality: QualityProfile;
+  frontQuality: QualityProfile;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   camera_mode: "dynamic",
   required_camera: "back",
-  quality_definition_id: 17,
-  quality_framerate_id: 6,
-  quality_bitrate_id: 11,
   pad_code: null,
+  backQuality: { definitionId: 17, framerateId: 6, bitrateId: 11 },
+  frontQuality: { definitionId: 15, framerateId: 8, bitrateId: 8 },
 };
 
 function Index() {
@@ -40,18 +38,27 @@ function Index() {
       try {
         const { data, error } = await supabase
           .from("app_settings")
-          .select("camera_mode, required_camera, quality_definition_id, quality_framerate_id, quality_bitrate_id, pad_code")
+          .select(
+            "camera_mode, required_camera, pad_code, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id",
+          )
           .eq("id", "default")
           .maybeSingle();
         if (error) throw error;
         if (data) {
           setSettings({
-            camera_mode: ((data as any).camera_mode as CameraMode) ?? "dynamic",
+            camera_mode: (data.camera_mode as CameraMode) ?? "dynamic",
             required_camera: (data.required_camera as "back" | "front") ?? "back",
-            quality_definition_id: data.quality_definition_id ?? 17,
-            quality_framerate_id: data.quality_framerate_id ?? 6,
-            quality_bitrate_id: data.quality_bitrate_id ?? 11,
             pad_code: data.pad_code,
+            backQuality: {
+              definitionId: data.back_definition_id ?? 17,
+              framerateId: data.back_framerate_id ?? 6,
+              bitrateId: data.back_bitrate_id ?? 11,
+            },
+            frontQuality: {
+              definitionId: data.front_definition_id ?? 15,
+              framerateId: data.front_framerate_id ?? 8,
+              bitrateId: data.front_bitrate_id ?? 8,
+            },
           });
         }
       } catch (e) {
@@ -62,7 +69,6 @@ function Index() {
     })();
   }, []);
 
-  // Derive the initial required camera from camera_mode for locked modes.
   const initialRequiredCamera: "back" | "front" =
     settings.camera_mode === "locked_front" ? "front" :
     settings.camera_mode === "locked_back" ? "back" :
@@ -74,9 +80,8 @@ function Index() {
     requiredCamera: initialRequiredCamera,
     padCode: settings.pad_code ?? undefined,
     viewId: "phoneBox",
-    definitionId: settings.quality_definition_id,
-    framerateId: settings.quality_framerate_id,
-    bitrateId: settings.quality_bitrate_id,
+    backQuality: settings.backQuality,
+    frontQuality: settings.frontQuality,
   });
 
   return (

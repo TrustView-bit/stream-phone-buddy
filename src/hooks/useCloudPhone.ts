@@ -6,15 +6,20 @@ export type CloudPhoneMode = "injector" | "viewer";
 export type CameraMode = "dynamic" | "locked_back" | "locked_front";
 type Facing = "back" | "front";
 
+export interface QualityProfile {
+  definitionId: number;
+  framerateId: number;
+  bitrateId: number;
+}
+
 export interface UseCloudPhoneOptions {
   mode: CloudPhoneMode;
   cameraMode?: CameraMode;
   requiredCamera?: Facing;
   padCode?: string;
   viewId?: string;
-  definitionId?: number;
-  framerateId?: number;
-  bitrateId?: number;
+  backQuality?: QualityProfile;
+  frontQuality?: QualityProfile;
 }
 
 export interface UseCloudPhoneResult {
@@ -30,9 +35,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     requiredCamera = "back",
     padCode: padCodeOverride,
     viewId = "phoneBox",
-    definitionId = 17,
-    framerateId = 6,
-    bitrateId = 11,
+    backQuality = { definitionId: 17, framerateId: 6, bitrateId: 11 },
+    frontQuality = { definitionId: 15, framerateId: 8, bitrateId: 8 },
   } = options;
 
   const [status, setStatus] = useState("Idle");
@@ -50,6 +54,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   cameraModeRef.current = cameraMode;
   const requiredCameraRef = useRef<Facing>(requiredCamera);
   requiredCameraRef.current = requiredCamera;
+  const backQualityRef = useRef<QualityProfile>(backQuality);
+  backQualityRef.current = backQuality;
+  const frontQualityRef = useRef<QualityProfile>(frontQuality);
+  frontQualityRef.current = frontQuality;
 
   // Switch coordination
   const switchInProgressRef = useRef(false);
@@ -229,9 +237,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
       // Apply per-camera quality profile (dynamic mode only).
       // Back = sharp/static detail; Front = smoother for people/movement.
-      const profile = target === "front"
-        ? { definitionId: 15, framerateId: 8, bitrateId: 8 }
-        : { definitionId: 17, framerateId: 6, bitrateId: 11 };
+      const profile = target === "front" ? frontQualityRef.current : backQualityRef.current;
       try {
         await (engineRef.current as any)?.setStreamConfig?.(profile);
         console.log("[CloudPhone] setStreamConfig applied for", target, profile);
@@ -487,7 +493,11 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: definitionId, frameRate: framerateId, bitrate: bitrateId },
+        videoStream: {
+          resolution: (initialFacing === "front" ? frontQuality : backQuality).definitionId,
+          frameRate: (initialFacing === "front" ? frontQuality : backQuality).framerateId,
+          bitrate: (initialFacing === "front" ? frontQuality : backQuality).bitrateId,
+        },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
@@ -513,7 +523,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
               return;
             }
             try {
-              await (engineRef.current as any).setStreamConfig({ definitionId, framerateId, bitrateId });
+              await (engineRef.current as any).setStreamConfig(initialFacing === "front" ? frontQualityRef.current : backQualityRef.current);
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setStreamConfig error: " + m);
