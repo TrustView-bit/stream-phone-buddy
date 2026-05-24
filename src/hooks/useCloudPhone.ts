@@ -493,7 +493,11 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: definitionId, frameRate: framerateId, bitrate: bitrateId },
+        videoStream: {
+          resolution: (initialFacing === "front" ? frontQuality : backQuality).definitionId,
+          frameRate: (initialFacing === "front" ? frontQuality : backQuality).framerateId,
+          bitrate: (initialFacing === "front" ? frontQuality : backQuality).bitrateId,
+        },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
