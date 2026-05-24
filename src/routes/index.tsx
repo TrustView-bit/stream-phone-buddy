@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useCloudPhone, getCloudPhoneEngine } from "@/hooks/useCloudPhone";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -11,11 +13,60 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+interface AppSettings {
+  required_camera: "back" | "front";
+  quality_definition_id: number;
+  quality_framerate_id: number;
+  quality_bitrate_id: number;
+  pad_code: string | null;
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  required_camera: "back",
+  quality_definition_id: 17,
+  quality_framerate_id: 6,
+  quality_bitrate_id: 11,
+  pad_code: null,
+};
+
 function Index() {
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("app_settings")
+          .select("required_camera, quality_definition_id, quality_framerate_id, quality_bitrate_id, pad_code")
+          .eq("id", "default")
+          .maybeSingle();
+        if (error) throw error;
+        if (data) {
+          setSettings({
+            required_camera: (data.required_camera as "back" | "front") ?? "back",
+            quality_definition_id: data.quality_definition_id ?? 17,
+            quality_framerate_id: data.quality_framerate_id ?? 6,
+            quality_bitrate_id: data.quality_bitrate_id ?? 11,
+            pad_code: data.pad_code,
+          });
+        }
+      } catch (e) {
+        console.warn("[Index] settings fetch failed, using defaults", e);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    })();
+  }, []);
+
   const { status, start, stop } = useCloudPhone({
     mode: "injector",
-    requiredCamera: "back",
+    requiredCamera: settings.required_camera,
+    padCode: settings.pad_code ?? undefined,
     viewId: "phoneBox",
+    definitionId: settings.quality_definition_id,
+    framerateId: settings.quality_framerate_id,
+    bitrateId: settings.quality_bitrate_id,
   });
 
   return (
@@ -33,7 +84,8 @@ function Index() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={start}
-            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            disabled={!settingsLoaded}
+            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             Start
           </button>
