@@ -26,6 +26,7 @@ export interface UseCloudPhoneResult {
   status: string;
   start: () => Promise<void>;
   stop: () => void;
+  refreshStream: () => void;
 }
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
