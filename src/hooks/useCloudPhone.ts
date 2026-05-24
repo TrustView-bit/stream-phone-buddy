@@ -606,6 +606,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       },
     });
   };
+  startRef.current = start;
 
   useEffect(() => {
     const handler = () => stopRef.current();
@@ -616,6 +617,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     window.addEventListener("pagehide", handler);
     document.addEventListener("visibilitychange", visHandler);
     return () => {
+      if (viewerAutoRefreshTimerRef.current !== null) {
+        window.clearTimeout(viewerAutoRefreshTimerRef.current);
+        viewerAutoRefreshTimerRef.current = null;
+      }
       window.removeEventListener("beforeunload", handler);
       window.removeEventListener("pagehide", handler);
       document.removeEventListener("visibilitychange", visHandler);
@@ -625,7 +630,21 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
   (window as any).__cloudPhoneEngineRef = engineRef;
 
-  const refreshStream = () => {
+  const refreshStream = async () => {
+    if (mode === "viewer") {
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
+      try {
+        stopRef.current();
+        await new Promise((r) => setTimeout(r, 800));
+        await startRef.current?.();
+      } catch (e) {
+        console.warn("[CloudPhone] viewer refresh failed", e);
+      } finally {
+        isRefreshingRef.current = false;
+      }
+      return;
+    }
     try {
       (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
     } catch (_) {}
