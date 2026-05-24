@@ -441,7 +441,7 @@ function Index() {
         userId: crypto.randomUUID(),
         mediaType: 3,
         rotateType: 0,
-        videoStream: { resolution: 12, frameRate: 8, bitrate: 1 },
+        videoStream: { resolution: 12, frameRate: 8, bitrate: 8 },
       },
       callbacks: {
         onInit: async ({ code }: { code: number | string }) => {
