@@ -81,6 +81,10 @@ export type Database = {
           id: string
           label: string
           pad_code: string
+          session_connected_at: string | null
+          session_status: string
+          session_updated_at: string | null
+          session_user_agent: string | null
         }
         Insert: {
           back_bitrate_id?: number
@@ -94,6 +98,10 @@ export type Database = {
           id: string
           label: string
           pad_code: string
+          session_connected_at?: string | null
+          session_status?: string
+          session_updated_at?: string | null
+          session_user_agent?: string | null
         }
         Update: {
           back_bitrate_id?: number
@@ -107,6 +115,10 @@ export type Database = {
           id?: string
           label?: string
           pad_code?: string
+          session_connected_at?: string | null
+          session_status?: string
+          session_updated_at?: string | null
+          session_user_agent?: string | null
         }
         Relationships: []
       }
