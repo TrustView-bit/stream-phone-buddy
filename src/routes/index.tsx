@@ -89,8 +89,8 @@ function Index() {
         raw = await getRawUserMedia({
           video: {
             deviceId: { exact: preferred.deviceId },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { min: 1280, ideal: 4096 },
+            height: { min: 720, ideal: 2160 },
           },
         });
       } catch (e) {
@@ -102,8 +102,8 @@ function Index() {
           raw = await getRawUserMedia({
             video: {
               facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
+              width: { min: 1280, ideal: 4096 },
+              height: { min: 720, ideal: 2160 },
             },
           });
         } catch (e2) {
@@ -117,8 +117,8 @@ function Index() {
         raw = await getRawUserMedia({
           video: {
             facingMode: { exact: REQUIRED_CAMERA === "back" ? "environment" : "user" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            width: { min: 1280, ideal: 4096 },
+            height: { min: 720, ideal: 2160 },
           },
         });
       } catch (e) {
@@ -138,18 +138,52 @@ function Index() {
     rawCameraRef.current = raw;
     const rawTrackInit = raw.getVideoTracks()[0];
     (rawTrackInit as MediaStreamTrack & { __cloudPhoneSource?: string }).__cloudPhoneSource = "raw-camera-for-canvas-only";
+
+    // Push to the camera's true maximum resolution via capabilities.
+    let capsInfo = "";
+    let applyErrorInfo = "";
+    try {
+      const caps = rawTrackInit.getCapabilities?.() ?? {};
+      console.log("[CloudPhone] track capabilities:", caps);
+      const maxW = caps.width?.max;
+      const maxH = caps.height?.max;
+      capsInfo = `caps: w=${caps.width?.min ?? "?"}–${maxW ?? "?"} h=${caps.height?.min ?? "?"}–${maxH ?? "?"}`;
+      if (maxW && maxH) {
+        try {
+          await rawTrackInit.applyConstraints({
+            width: { ideal: maxW },
+            height: { ideal: maxH },
+          });
+        } catch (e) {
+          const err = e as { name?: string; message?: string };
+          applyErrorInfo = `applyConstraints failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+          console.warn("[CloudPhone]", applyErrorInfo);
+        }
+      }
+    } catch (e) {
+      console.warn("[CloudPhone] getCapabilities failed", e);
+    }
+
     const settings = rawTrackInit?.getSettings();
-    console.log("Camera settings:", settings);
+    console.log("Camera settings (final):", settings);
     setCamSettings({ width: settings?.width, height: settings?.height, aspectRatio: settings?.aspectRatio });
     const facing = settings?.facingMode ?? "(unknown)";
     const chosenLabel = rawTrackInit?.label ?? "(no label)";
+    const finalW = settings?.width ?? 0;
+    const finalH = settings?.height ?? 0;
+    const lowRes = finalW > 0 && finalW < 1280;
+    if (lowRes) {
+      setStatus(`Low camera resolution: ${finalW}×${finalH} (hardware max)`);
+    }
     setVideoDebug(
       `Required: ${REQUIRED_CAMERA}\n` +
       `Chosen label: ${chosenLabel}\n` +
       `facingMode: ${facing}\n` +
-      `Camera: ${settings?.width ?? "?"}×${settings?.height ?? "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
+      `Camera (final): ${finalW || "?"}×${finalH || "?"} ar=${settings?.aspectRatio?.toFixed(3) ?? "?"}\n` +
+      `${capsInfo}\n` +
       `videoinputs: ${videoInputs.length}\n${deviceListStr}` +
-      (acquireError ? `\n${acquireError}` : "")
+      (acquireError ? `\n${acquireError}` : "") +
+      (applyErrorInfo ? `\n${applyErrorInfo}` : "")
     );
 
 
