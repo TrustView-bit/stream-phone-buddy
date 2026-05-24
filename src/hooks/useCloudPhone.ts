@@ -437,8 +437,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
               return;
             }
             try {
-              await (engineRef.current as any).setStreamConfig({ definitionId: 17, framerateId: 6, bitrateId: 11 });
-              console.log("[CloudPhone] setStreamConfig applied: def=17 fr=6 br=11 (FHD-Max)");
+              await (engineRef.current as any).setStreamConfig({ definitionId, framerateId, bitrateId });
+              console.log(`[CloudPhone] setStreamConfig applied: def=${definitionId} fr=${framerateId} br=${bitrateId}`);
             } catch (e) {
               const m = e instanceof Error ? e.message : String(e);
               setStatus("setStreamConfig error: " + m);
