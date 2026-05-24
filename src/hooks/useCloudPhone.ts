@@ -382,10 +382,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const dx = (canvas.width - dw) / 2;
           const dy = (canvas.height - dh) / 2;
           ctx.save();
-          if (currentFacingRef.current === "front") {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-          }
+          // No horizontal flip in dynamic-switch context: front camera mirroring
+          // is handled downstream by the cloud phone; back camera is not mirrored.
           try {
             ctx.drawImage(v, dx, dy, dw, dh);
           } catch (e) {
