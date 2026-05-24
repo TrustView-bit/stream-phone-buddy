@@ -6,7 +6,7 @@ export const Route = createFileRoute("/admin")({
   head: () => ({
     meta: [
       { title: "Admin — Cloud Phone Viewer" },
-      { name: "description", content: "Settings for Cloud Phone Viewer." },
+      { name: "description", content: "Manage phone links." },
     ],
   }),
   component: Admin,
@@ -16,7 +16,9 @@ const ADMIN_PASSWORD = "changeme";
 
 type CameraMode = "dynamic" | "locked_back" | "locked_front";
 
-interface SettingsRow {
+interface LinkRow {
+  id: string;
+  label: string;
   pad_code: string;
   camera_mode: CameraMode;
   back_definition_id: number;
@@ -45,8 +47,10 @@ const BR_OPTS = [
   { v: 12, label: "12 Mbps" },
 ];
 
-const DEFAULTS: SettingsRow = {
-  pad_code: "APP63U6GYP7UDGQV",
+const NEW_DEFAULTS = (id: string): LinkRow => ({
+  id,
+  label: id,
+  pad_code: "",
   camera_mode: "dynamic",
   back_definition_id: 17,
   back_framerate_id: 6,
@@ -54,7 +58,11 @@ const DEFAULTS: SettingsRow = {
   front_definition_id: 15,
   front_framerate_id: 8,
   front_bitrate_id: 8,
-};
+});
+
+function randomSlug() {
+  return Math.random().toString(36).slice(2, 8);
+}
 
 function Admin() {
   const [authed, setAuthed] = useState(false);
@@ -104,161 +112,345 @@ function Admin() {
 }
 
 function AdminPanel() {
-  const [row, setRow] = useState<SettingsRow>(DEFAULTS);
+  const [links, setLinks] = useState<LinkRow[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const reload = async () => {
+    const { data, error } = await supabase
+      .from("links" as any)
+      .select(
+        "id, label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id",
+      )
+      .order("created_at", { ascending: true });
+    if (error) {
+      setStatus("Load failed: " + error.message);
+    } else {
+      setLinks((data ?? []) as unknown as LinkRow[]);
+    }
+    setLoaded(true);
+  };
 
   useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("app_settings")
-        .select(
-          "pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id",
-        )
-        .eq("id", "default")
-        .maybeSingle();
-      if (error) {
-        setStatus("Failed to load settings: " + error.message);
-      } else if (data) {
-        setRow({
-          pad_code: data.pad_code ?? DEFAULTS.pad_code,
-          camera_mode: (data.camera_mode as CameraMode) ?? "dynamic",
-          back_definition_id: data.back_definition_id ?? 17,
-          back_framerate_id: data.back_framerate_id ?? 6,
-          back_bitrate_id: data.back_bitrate_id ?? 11,
-          front_definition_id: data.front_definition_id ?? 15,
-          front_framerate_id: data.front_framerate_id ?? 8,
-          front_bitrate_id: data.front_bitrate_id ?? 8,
-        });
-      }
-      setLoaded(true);
-    })();
+    void reload();
   }, []);
 
-  const save = async () => {
-    setSaving(true);
-    setStatus("Saving…");
-    const { error } = await supabase
-      .from("app_settings")
-      .update(row)
-      .eq("id", "default");
-    setSaving(false);
-    setStatus(error ? "Save failed: " + error.message : "Saved.");
-  };
-
-  const injectorUrl = typeof window !== "undefined" ? window.location.origin + "/" : "/";
-
-  const copyInjector = async () => {
-    try {
-      await navigator.clipboard.writeText(injectorUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (_) {
-      setCopied(false);
-    }
-  };
+  const editing = links.find((l) => l.id === editingId) ?? null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-3xl font-bold tracking-tight">Admin</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Admin — Links</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cloud Phone Viewer settings. Changes apply to the injector on next load.
+          Each link maps to one phone. Share the link URL with the end user.
         </p>
 
         {!loaded ? (
           <p className="mt-8 text-sm text-muted-foreground">Loading…</p>
+        ) : editing ? (
+          <LinkEditor
+            row={editing}
+            onClose={() => setEditingId(null)}
+            onSaved={async () => {
+              await reload();
+              setStatus("Saved.");
+            }}
+          />
         ) : (
-          <div className="mt-8 space-y-8">
-            {/* Pad code */}
-            <Section title="Target phone">
-              <Label text="Pad code">
-                <input
-                  type="text"
-                  value={row.pad_code}
-                  onChange={(e) => setRow({ ...row, pad_code: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </Label>
-            </Section>
-
-            {/* Camera mode */}
-            <Section title="Camera mode">
-              <Label text="Mode">
-                <select
-                  value={row.camera_mode}
-                  onChange={(e) =>
-                    setRow({ ...row, camera_mode: e.target.value as CameraMode })
-                  }
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="dynamic">Dynamic (follow cloud phone)</option>
-                  <option value="locked_back">Locked to back</option>
-                  <option value="locked_front">Locked to front</option>
-                </select>
-              </Label>
-            </Section>
-
-            {/* Back quality */}
-            <Section title="Back camera quality (sharp / static detail)">
-              <QualityGrid
-                def={row.back_definition_id}
-                fr={row.back_framerate_id}
-                br={row.back_bitrate_id}
-                onDef={(v) => setRow({ ...row, back_definition_id: v })}
-                onFr={(v) => setRow({ ...row, back_framerate_id: v })}
-                onBr={(v) => setRow({ ...row, back_bitrate_id: v })}
-              />
-            </Section>
-
-            {/* Front quality */}
-            <Section title="Front camera quality (smooth / movement)">
-              <QualityGrid
-                def={row.front_definition_id}
-                fr={row.front_framerate_id}
-                br={row.front_bitrate_id}
-                onDef={(v) => setRow({ ...row, front_definition_id: v })}
-                onFr={(v) => setRow({ ...row, front_framerate_id: v })}
-                onBr={(v) => setRow({ ...row, front_bitrate_id: v })}
-              />
-            </Section>
-
-            {/* Actions */}
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={save}
-                disabled={saving}
-                className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {saving ? "Saving…" : "Save"}
-              </button>
-              <a
-                href="/"
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md border border-input bg-background px-5 py-2 text-sm font-medium hover:bg-accent"
-              >
-                Test connection
-              </a>
-              <button
-                onClick={copyInjector}
-                className="rounded-md border border-input bg-background px-5 py-2 text-sm font-medium hover:bg-accent"
-              >
-                {copied ? "Copied!" : "Generate injector link"}
-              </button>
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              Injector URL: <code className="font-mono">{injectorUrl}</code>
-            </div>
-
-            {status && (
-              <p className="text-sm text-muted-foreground">{status}</p>
-            )}
-          </div>
+          <LinkList
+            links={links}
+            onEdit={(id) => setEditingId(id)}
+            onCreated={async () => {
+              await reload();
+            }}
+          />
         )}
+
+        {status && <p className="mt-4 text-sm text-muted-foreground">{status}</p>}
+      </div>
+    </div>
+  );
+}
+
+function LinkList({
+  links,
+  onEdit,
+  onCreated,
+}: {
+  links: LinkRow[];
+  onEdit: (id: string) => void;
+  onCreated: () => Promise<void>;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [newId, setNewId] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newPad, setNewPad] = useState("");
+  const [error, setError] = useState("");
+
+  const create = async () => {
+    setError("");
+    const id = (newId || randomSlug()).trim();
+    if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+      setError("ID must contain only letters, numbers, dashes, underscores.");
+      return;
+    }
+    if (!newPad.trim()) {
+      setError("Pad code is required.");
+      return;
+    }
+    const row = {
+      ...NEW_DEFAULTS(id),
+      label: newLabel.trim() || id,
+      pad_code: newPad.trim(),
+    };
+    const { error } = await supabase.from("links" as any).insert(row as any);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setNewId("");
+    setNewLabel("");
+    setNewPad("");
+    setCreating(false);
+    await onCreated();
+  };
+
+  return (
+    <div className="mt-8 space-y-4">
+      <div className="space-y-2">
+        {links.length === 0 && (
+          <p className="text-sm text-muted-foreground">No links yet.</p>
+        )}
+        {links.map((l) => (
+          <LinkRowItem key={l.id} row={l} onEdit={() => onEdit(l.id)} />
+        ))}
+      </div>
+
+      {creating ? (
+        <div className="rounded-lg border border-border bg-card p-5 text-card-foreground">
+          <h3 className="text-base font-semibold">New link</h3>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Label text="Slug (optional)">
+              <input
+                value={newId}
+                onChange={(e) => setNewId(e.target.value)}
+                placeholder="auto"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </Label>
+            <Label text="Label">
+              <input
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="Phone B"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </Label>
+            <Label text="Pad code">
+              <input
+                value={newPad}
+                onChange={(e) => setNewPad(e.target.value)}
+                placeholder="APP..."
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </Label>
+          </div>
+          {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={create}
+              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Create
+            </button>
+            <button
+              onClick={() => setCreating(false)}
+              className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setCreating(true)}
+          className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          New link
+        </button>
+      )}
+    </div>
+  );
+}
+
+function LinkRowItem({ row, onEdit }: { row: LinkRow; onEdit: () => void }) {
+  const url =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/link/${row.id}`
+      : `/link/${row.id}`;
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (_) {}
+  };
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-card-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="text-sm font-semibold">{row.label}</div>
+        <div className="text-xs text-muted-foreground">
+          <code className="font-mono">{url}</code>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          pad: <code className="font-mono">{row.pad_code}</code> · mode: {row.camera_mode}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={copy}
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+        >
+          {copied ? "Copied!" : "Copy URL"}
+        </button>
+        <a
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+        >
+          Open
+        </a>
+        <button
+          onClick={onEdit}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Edit
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LinkEditor({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: LinkRow;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<LinkRow>(row);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    const { id, ...update } = draft;
+    const { error } = await supabase
+      .from("links" as any)
+      .update(update as any)
+      .eq("id", id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await onSaved();
+    onClose();
+  };
+
+  return (
+    <div className="mt-8 space-y-6">
+      <button
+        onClick={onClose}
+        className="text-sm text-muted-foreground hover:underline"
+      >
+        ← Back to links
+      </button>
+
+      <Section title="Identity">
+        <Label text="ID (slug)">
+          <input
+            value={draft.id}
+            disabled
+            className="w-full rounded-md border border-input bg-muted px-3 py-2 text-sm"
+          />
+        </Label>
+        <Label text="Label">
+          <input
+            value={draft.label}
+            onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+        </Label>
+        <Label text="Pad code">
+          <input
+            value={draft.pad_code}
+            onChange={(e) => setDraft({ ...draft, pad_code: e.target.value })}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+        </Label>
+      </Section>
+
+      <Section title="Camera mode">
+        <Label text="Mode">
+          <select
+            value={draft.camera_mode}
+            onChange={(e) =>
+              setDraft({ ...draft, camera_mode: e.target.value as CameraMode })
+            }
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="dynamic">Dynamic (follow cloud phone)</option>
+            <option value="locked_back">Locked to back</option>
+            <option value="locked_front">Locked to front</option>
+          </select>
+        </Label>
+      </Section>
+
+      <Section title="Back camera quality (sharp / static detail)">
+        <QualityGrid
+          def={draft.back_definition_id}
+          fr={draft.back_framerate_id}
+          br={draft.back_bitrate_id}
+          onDef={(v) => setDraft({ ...draft, back_definition_id: v })}
+          onFr={(v) => setDraft({ ...draft, back_framerate_id: v })}
+          onBr={(v) => setDraft({ ...draft, back_bitrate_id: v })}
+        />
+      </Section>
+
+      <Section title="Front camera quality (smooth / movement)">
+        <QualityGrid
+          def={draft.front_definition_id}
+          fr={draft.front_framerate_id}
+          br={draft.front_bitrate_id}
+          onDef={(v) => setDraft({ ...draft, front_definition_id: v })}
+          onFr={(v) => setDraft({ ...draft, front_framerate_id: v })}
+          onBr={(v) => setDraft({ ...draft, front_bitrate_id: v })}
+        />
+      </Section>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="flex gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="rounded-md bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={onClose}
+          className="rounded-md border border-input bg-background px-5 py-2 text-sm font-medium hover:bg-accent"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );
