@@ -205,17 +205,9 @@ function LiveLink({
 
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
+  const [tapStarted, setTapStarted] = useState(false);
 
-  // 1) Auto-connect once when admin signals ready
-  useEffect(() => {
-    if (sessionStatus !== "ready_for_user") return;
-    if (startedRef.current) return;
-    startedRef.current = true;
-    console.log("[LinkPage] ready_for_user → start()");
-    void start();
-  }, [sessionStatus, start]);
-
-  // 2) When injection succeeds, mark session_status = 'injecting' (once)
+  // When injection succeeds, mark session_status = 'injecting' (once)
   useEffect(() => {
     if (injectionMarkedRef.current) return;
     const s = status.toLowerCase();
