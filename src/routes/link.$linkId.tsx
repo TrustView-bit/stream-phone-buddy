@@ -254,6 +254,39 @@ function LiveLink({
     );
   }
 
+  // Tap-to-start screen (required user gesture for camera permission)
+  if (sessionStatus === "ready_for_user" && !tapStarted) {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your session is ready.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This will use your camera and stream it to a remote device.
+        </p>
+        <button
+          onClick={() => {
+            if (startedRef.current) return;
+            startedRef.current = true;
+            setTapStarted(true);
+            console.log("[LinkPage] user tapped → start()");
+            void start();
+          }}
+          className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
+        >
+          Tap to start your camera
+        </button>
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
+      </CenteredShell>
+    );
+  }
+
   const friendly = friendlyStatus(status);
 
   return (
