@@ -14,7 +14,7 @@ export const Route = createFileRoute("/link/$linkId")({
   component: LinkPage,
 });
 
-type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live" | "finished";
 type StatusSource = "init" | "realtime" | "poll";
 
 interface LinkConfig {
@@ -247,7 +247,22 @@ function LiveLink({
   const [exhausted, setExhausted] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [finished, setFinished] = useState(false);
   const primingStreamRef = useRef<MediaStream | null>(null);
+
+  // Terminal "finished" state — once admin ends the session, fully tear down
+  // and lock the page on the thank-you screen for this page load.
+  useEffect(() => {
+    if (finished) return;
+    if (sessionStatus !== "finished") return;
+    setFinished(true);
+    try { stop(); } catch {}
+    startedRef.current = false;
+    injectionMarkedRef.current = false;
+    watchdogAttemptRef.current = 0;
+    releasePrimingStream();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus, finished]);
 
   // ---- User state reporting (observability for admin Control Center) ----
   const lastStageRef = useRef<string | null>(null);
@@ -541,6 +556,36 @@ function LiveLink({
   useEffect(() => {
     console.log("[link] status:", status, "live:", live, "sessionStatus:", sessionStatus);
   }, [status, live, sessionStatus]);
+
+  // ===== Terminal thank-you screen (session finished by admin) =====
+  if (finished) {
+    return (
+      <CenteredShell>
+        <BrandHeader />
+        <div className="mt-12 flex flex-col items-center gap-6">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/30">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-10 w-10 text-primary"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight">Grazie!</h1>
+          <p className="max-w-sm text-base text-muted-foreground">
+            La sessione è stata completata. Puoi chiudere questa pagina.
+          </p>
+        </div>
+      </CenteredShell>
+    );
+  }
 
   // ===== Initial Start screen =====
   if (!tapStarted) {

@@ -14,7 +14,7 @@ export const Route = createFileRoute("/view/$linkId")({
   component: ViewPage,
 });
 
-type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live" | "finished";
 
 interface SessionRow {
   status: SessionStatus;
@@ -292,6 +292,27 @@ function Viewer({
 
   };
 
+  const onFinish = async () => {
+    if (!window.confirm("End the session for this user?")) return;
+    // 1) Flip status to 'finished' so the user page tears down + shows thank-you
+    await updateSessionStatus(linkId, "finished");
+    // 2) Tear down admin viewer fully
+    stop();
+    setConnected(false);
+    autoReconnectRef.current = false;
+    liveMarkedRef.current = false;
+    // 3) Give the user page a moment to receive 'finished', then free the phone
+    setTimeout(() => {
+      void updateSessionStatus(linkId, "idle", {
+        session_user_agent: null,
+        session_connected_at: null,
+        user_stage: null,
+        user_detail: null,
+        user_heartbeat: null,
+      });
+    }, 1500);
+  };
+
 
   // When the user starts injecting, auto-reconnect admin in viewer mode
   useEffect(() => {
@@ -445,6 +466,13 @@ function Viewer({
                   className="rounded-md border border-destructive/40 bg-background px-6 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
                 >
                   Reset session
+                </button>
+                <button
+                  onClick={() => void onFinish()}
+                  className="ml-auto rounded-md bg-destructive px-6 py-2 text-sm font-semibold text-destructive-foreground shadow hover:bg-destructive/90"
+                  title="Fully end the session and release the phone"
+                >
+                  Finish session
                 </button>
                 <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm">
                   Tap to play
