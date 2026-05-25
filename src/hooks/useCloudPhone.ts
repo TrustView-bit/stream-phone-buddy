@@ -52,18 +52,17 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const drawRafRef = useRef<number | null>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Size canvas to match the camera's native aspect ratio (cap longest side at 1920).
-  const sizeCanvasToVideo = (canvas: HTMLCanvasElement, vw: number, vh: number) => {
-    if (!vw || !vh) return;
-    const MAX = 1920;
-    const longest = Math.max(vw, vh);
-    const scale = longest > MAX ? MAX / longest : 1;
-    const w = Math.max(2, Math.round((vw * scale) / 2) * 2);
-    const h = Math.max(2, Math.round((vh * scale) / 2) * 2);
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-      console.log(`[CloudPhone] canvas resized to ${w}×${h} (camera native ${vw}×${vh}, aspect ${(vw/vh).toFixed(3)})`);
+  // Fixed canvas dimensions matching the cloud phone screen (9:16 portrait).
+  // The injected stream MUST match the cloud phone's camera preview aspect ratio,
+  // otherwise the camera app letterboxes it. The user's camera is cover-cropped
+  // into this fixed canvas — guaranteeing zero black pixels.
+  const CANVAS_W = 1080;
+  const CANVAS_H = 1920;
+  const ensureCanvasSize = (canvas: HTMLCanvasElement) => {
+    if (canvas.width !== CANVAS_W || canvas.height !== CANVAS_H) {
+      canvas.width = CANVAS_W;
+      canvas.height = CANVAS_H;
+      console.log(`[CloudPhone] canvas fixed at ${CANVAS_W}×${CANVAS_H} (9:16, matches cloud phone screen)`);
     }
   };
 
