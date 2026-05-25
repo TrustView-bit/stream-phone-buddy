@@ -386,12 +386,13 @@ function LiveLink({
         </p>
         <button
           onClick={() => {
-            if (startedRef.current) return;
+            if (inTransitionRef.current) return;
             setTapStarted(true);
-            setAttempt(1);
             setExhausted(false);
-            console.log("[LinkPage] user tapped → start()");
-            void runStart();
+            watchdogAttemptRef.current = 0;
+            injectionMarkedRef.current = false;
+            console.log("[LinkPage] user tapped → transition");
+            void runTransition();
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
