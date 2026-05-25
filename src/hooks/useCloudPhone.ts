@@ -474,15 +474,49 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       setStatus("Missing pad code");
       return;
     }
-    const { data, error } = await supabase.functions.invoke("cloudphone-token", {
-      body: { padCode: padCodeOverride },
-    });
-    if (error) {
-      setStatus("Token error: " + error.message);
+    // Token fetch with 8s timeout and up to 2 attempts (initial + 1 retry)
+    const MAX_TOKEN_ATTEMPTS = 2;
+    const TOKEN_TIMEOUT_MS = 8000;
+    let tokenData: { token?: string; padCode?: string } | null = null;
+    let lastTokenError: string | null = null;
+    for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+      const invokePromise = supabase.functions.invoke("cloudphone-token", {
+        body: { padCode: padCodeOverride },
+      });
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      const timeoutPromise = new Promise<{ __timedOut: true }>((resolve) => {
+        timeoutId = setTimeout(() => resolve({ __timedOut: true }), TOKEN_TIMEOUT_MS);
+      });
+      const result = await Promise.race([invokePromise, timeoutPromise]);
+      if (timeoutId) clearTimeout(timeoutId);
+      if ((result as { __timedOut?: boolean }).__timedOut) {
+        lastTokenError = "timeout";
+        console.warn("[CloudPhone] token fetch timed out (attempt " + attempt + ")");
+        if (attempt < MAX_TOKEN_ATTEMPTS) {
+          setStatus("Token timed out, retrying…");
+          continue;
+        }
+        break;
+      }
+      const { data, error } = result as { data: { token?: string; padCode?: string } | null; error: { message: string } | null };
+      if (error) {
+        lastTokenError = error.message;
+        console.warn("[CloudPhone] token fetch error (attempt " + attempt + ")", error);
+        if (attempt < MAX_TOKEN_ATTEMPTS) {
+          setStatus("Token error, retrying…");
+          continue;
+        }
+        break;
+      }
+      tokenData = data;
+      break;
+    }
+    if (!tokenData || !tokenData.token) {
+      setStatus("Connection failed — please retry" + (lastTokenError ? ` (${lastTokenError})` : ""));
       return;
     }
-    const token = data.token;
-    const padCode = padCodeOverride ?? data.padCode;
+    const token = tokenData.token;
+    const padCode = padCodeOverride ?? tokenData.padCode;
 
     const isInjector = mode === "injector";
 
