@@ -244,10 +244,9 @@ function LiveLink({
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
     } catch (e: any) {
+      console.error("[LinkPage] Start tap camera acquire failed", e);
       setPermissionError(
-        e?.name === "NotAllowedError"
-          ? "L'accesso alla fotocamera è necessario per continuare. Tocca per riprovare."
-          : "Impossibile accedere alla fotocamera. Tocca per riprovare.",
+        "Camera error: " + (e?.name ?? "Unknown") + " — " + (e?.message ?? String(e)) + ". Tocca per riprovare.",
       );
       return;
     }
