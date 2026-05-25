@@ -87,7 +87,10 @@ function ViewPage() {
             connectedAt: n?.session_connected_at ?? null,
           });
           if (typeof n?.user_view_hidden === "boolean") {
+            console.log(`[ViewPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
+          } else {
+            console.log("[ViewPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
