@@ -636,6 +636,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           engineRef.current?.start();
         },
         onConnectSuccess: async () => {
+          hasConnectedRef.current = true;
+          clearRecoveryTimer();
           setStatus("Connected");
           if (!isInjector) {
             return;
@@ -667,20 +669,30 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           }
         },
         onConnectFail: ({ msg }: { msg?: string }) => {
+          console.warn("[CloudPhone] onConnectFail", { msg, hasConnected: hasConnectedRef.current });
+          if (hasConnectedRef.current) {
+            // Reconnect attempt failed — let the recovery window keep trying.
+            beginRecoveryWindow("onConnectFail after prior success: " + (msg ?? ""));
+            return;
+          }
+          // Genuine initial-connection failure — surface and stop.
           setStatus("Connect failed: " + msg + " · releasing session");
           stopRef.current();
         },
         onConnectionStateChanged: (payload: { state: number }) => {
+          console.log("[CloudPhone] onConnectionStateChanged", payload);
           if (payload?.state >= 4) {
-            setStatus("Connection state " + payload.state + " · releasing session");
-            stopRef.current();
+            // Transient disconnect — give the SDK a recovery window before tearing down.
+            beginRecoveryWindow("connectionState=" + payload.state);
           }
         },
         onErrorMessage: (payload: { msg?: string; code?: number | string }) => {
-          setStatus("Error: " + (payload?.msg ?? payload?.code ?? "unknown") + " · releasing session");
-          stopRef.current();
+          console.warn("[CloudPhone] onErrorMessage", payload);
+          // Do NOT stop on transient errors — let the recovery window / SDK auto-recovery handle it.
+          setStatus("Connection issue: " + (payload?.msg ?? payload?.code ?? "unknown"));
         },
         onUserLeave: (event: { reason?: string | number }) => {
+          // Genuine session end from the cloud-phone side — stop for real.
           setStatus("Session ended: " + (event?.reason ?? "user leave") + " · releasing");
           stopRef.current();
         },
