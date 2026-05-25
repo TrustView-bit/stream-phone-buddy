@@ -418,19 +418,16 @@ function LiveLink({
         </p>
         <button
           onClick={() => {
-            if (retryTimerRef.current) {
-              clearTimeout(retryTimerRef.current);
-              retryTimerRef.current = null;
-            }
-            startedRef.current = false;
+            clearWatchdog();
             setExhausted(false);
-            setAttempt(1);
-            console.log("[LinkPage] user tapped retry");
-            void runStart();
+            watchdogAttemptRef.current = 0;
+            injectionMarkedRef.current = false;
+            console.log("[LinkPage] user tapped retry → transition");
+            void runTransition(true);
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
-          Couldn't connect — tap to try again
+          Couldn't connect — tap to retry
         </button>
         <DebugBar
           sessionStatus={sessionStatus}
