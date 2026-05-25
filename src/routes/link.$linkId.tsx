@@ -225,7 +225,7 @@ function LiveLink({
     config.camera_mode === "locked_back" ? "back" :
     "back";
 
-  const { status, start, stop } = useCloudPhone({
+  const { status, start, stop, pauseDownstream, resumeDownstream } = useCloudPhone({
     mode: "injector",
     cameraMode: config.camera_mode,
     requiredCamera: initialRequired,
