@@ -210,12 +210,14 @@ function Viewer({
   label,
   session,
   userViewHidden,
+  onToggleHidden,
 }: {
   linkId: string;
   padCode: string;
   label: string;
   session: SessionRow;
   userViewHidden: boolean;
+  onToggleHidden: (hidden: boolean) => Promise<boolean>;
 }) {
 
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
