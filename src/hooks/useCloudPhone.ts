@@ -645,24 +645,38 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   startRef.current = start;
 
   useEffect(() => {
-    const handler = () => stopRef.current();
+    const isInjectorMode = mode === "injector";
+    const unloadHandler = () => stopRef.current();
     const visHandler = () => {
-      if (document.visibilityState === "hidden") stopRef.current();
+      // Only act on RETURN to foreground — never stop on hide/background.
+      if (document.visibilityState !== "visible") return;
+      if (!engineRef.current) return;
+      console.log("[CloudPhone] tab visible — attempting graceful resume");
+      try {
+        if (isInjectorMode) {
+          const v = hiddenVideoRef.current;
+          if (v && v.paused) {
+            v.play().catch((e) => console.warn("[CloudPhone] hidden video resume failed", e));
+          }
+        } else {
+          (engineRef.current as any)?.resumeAllSubscribedStream?.(3);
+        }
+      } catch (e) {
+        console.warn("[CloudPhone] resume error", e);
+      }
     };
-    window.addEventListener("beforeunload", handler);
-    window.addEventListener("pagehide", handler);
+    window.addEventListener("beforeunload", unloadHandler);
     document.addEventListener("visibilitychange", visHandler);
     return () => {
       if (viewerAutoRefreshTimerRef.current !== null) {
         window.clearTimeout(viewerAutoRefreshTimerRef.current);
         viewerAutoRefreshTimerRef.current = null;
       }
-      window.removeEventListener("beforeunload", handler);
-      window.removeEventListener("pagehide", handler);
+      window.removeEventListener("beforeunload", unloadHandler);
       document.removeEventListener("visibilitychange", visHandler);
       stopRef.current();
     };
-  }, []);
+  }, [mode]);
 
 
 
