@@ -537,10 +537,25 @@ function LiveLink({
         </div>
       )}
 
+      {/* Admin-controlled curtain — covers user's view while connection & camera stay live */}
+      {userViewHidden && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-background to-muted/30 px-6 text-center text-foreground">
+          <BrandHeader />
+          <div className="flex flex-col items-center gap-4">
+            <span className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <p className="text-lg font-medium">Attendere prego…</p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Verifica in corso. Mantieni questa pagina aperta.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Always-mounted playBtn for SDK gesture handoff */}
       <button id="playBtn" hidden className="hidden">
         Tocca per avviare
       </button>
+
     </>
   );
 }
