@@ -44,8 +44,10 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
+  const [userViewHidden, setUserViewHidden] = useState(false);
   const [, setStatusSource] = useState<StatusSource>("init");
   const [, setRtStatus] = useState<string>("connecting");
+
 
   useEffect(() => {
     let cancelled = false;
