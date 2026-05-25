@@ -209,6 +209,7 @@ function LinkPage() {
       config={load.config}
       sessionStatus={sessionStatus}
       userViewHidden={userViewHidden}
+      finishedSignal={finished}
     />
   );
 }
@@ -218,11 +219,13 @@ function LiveLink({
   config,
   sessionStatus,
   userViewHidden,
+  finishedSignal,
 }: {
   linkId: string;
   config: LinkConfig;
   sessionStatus: SessionStatus;
   userViewHidden: boolean;
+  finishedSignal: boolean;
 }) {
 
   const initialRequired: "back" | "front" =
