@@ -137,7 +137,7 @@ function AdminPanel() {
     const { data, error } = await supabase
       .from("links" as any)
       .select(
-        "id, label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id",
+        "id, label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status",
       )
       .order("created_at", { ascending: true });
     if (error) {
@@ -150,6 +150,25 @@ function AdminPanel() {
 
   useEffect(() => {
     void reload();
+  }, []);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("links-realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "links" },
+        (payload) => {
+          const updated = payload.new as LinkRow;
+          setLinks((prev) =>
+            prev.map((l) => (l.id === updated.id ? { ...l, session_status: updated.session_status } : l)),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, []);
 
   const editing = links.find((l) => l.id === editingId) ?? null;
