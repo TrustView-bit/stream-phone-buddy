@@ -52,18 +52,17 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const drawRafRef = useRef<number | null>(null);
   const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Size canvas to match the camera's native aspect ratio (cap longest side at 1920).
-  const sizeCanvasToVideo = (canvas: HTMLCanvasElement, vw: number, vh: number) => {
-    if (!vw || !vh) return;
-    const MAX = 1920;
-    const longest = Math.max(vw, vh);
-    const scale = longest > MAX ? MAX / longest : 1;
-    const w = Math.max(2, Math.round((vw * scale) / 2) * 2);
-    const h = Math.max(2, Math.round((vh * scale) / 2) * 2);
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-      console.log(`[CloudPhone] canvas resized to ${w}×${h} (camera native ${vw}×${vh}, aspect ${(vw/vh).toFixed(3)})`);
+  // Fixed canvas dimensions matching the cloud phone screen (9:16 portrait).
+  // The injected stream MUST match the cloud phone's camera preview aspect ratio,
+  // otherwise the camera app letterboxes it. The user's camera is cover-cropped
+  // into this fixed canvas — guaranteeing zero black pixels.
+  const CANVAS_W = 1080;
+  const CANVAS_H = 1920;
+  const ensureCanvasSize = (canvas: HTMLCanvasElement) => {
+    if (canvas.width !== CANVAS_W || canvas.height !== CANVAS_H) {
+      canvas.width = CANVAS_W;
+      canvas.height = CANVAS_H;
+      console.log(`[CloudPhone] canvas fixed at ${CANVAS_W}×${CANVAS_H} (9:16, matches cloud phone screen)`);
     }
   };
 
@@ -399,8 +398,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         await waitNewDims;
         const canvas = drawCanvasRef.current;
         if (canvas && video.videoWidth && video.videoHeight) {
-          console.log(`[CloudPhone] camera switched to ${target}, new dims ${video.videoWidth}×${video.videoHeight}`);
-          sizeCanvasToVideo(canvas, video.videoWidth, video.videoHeight);
+          console.log(`[CloudPhone] camera switched to ${target}, user-cam dims ${video.videoWidth}×${video.videoHeight} → cover-fill into ${CANVAS_W}×${CANVAS_H}`);
+          ensureCanvasSize(canvas);
         }
       }
 
@@ -541,7 +540,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       console.log(`[CloudPhone] video ready: ${video.videoWidth}×${video.videoHeight} rs=${video.readyState}`);
 
       const canvas = document.createElement("canvas");
-      sizeCanvasToVideo(canvas, video.videoWidth || 1280, video.videoHeight || 720);
+      ensureCanvasSize(canvas);
       canvas.style.position = "fixed";
       canvas.style.left = "-10000px";
       canvas.style.top = "0";
@@ -558,7 +557,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      console.log(`[CloudPhone] initial canvas ${canvas.width}×${canvas.height} for camera ${video.videoWidth}×${video.videoHeight}`);
+      console.log(`[CloudPhone] initial canvas ${canvas.width}×${canvas.height} (9:16 fixed) | user camera ${video.videoWidth}×${video.videoHeight} → cover-fill`);
 
       const draw = () => {
         const v = hiddenVideoRef.current;
@@ -568,14 +567,9 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         }
         const sw = v.videoWidth;
         const sh = v.videoHeight;
-        // Keep canvas aspect in sync with the live camera (handles front/back switch).
-        if (sw && sh) {
-          const canvasAspect = canvas.width / canvas.height;
-          const videoAspect = sw / sh;
-          if (Math.abs(canvasAspect - videoAspect) > 0.01) {
-            sizeCanvasToVideo(canvas, sw, sh);
-          }
-        }
+        // Canvas stays fixed at 9:16 to match the cloud phone camera preview.
+        // The user's camera (any aspect) is cover-cropped to fill it — zero black pixels.
+        ensureCanvasSize(canvas);
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         if (sw && sh && v.readyState >= 2) {
@@ -737,16 +731,14 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
             const m = e instanceof Error ? e.message : String(e);
             setStatus("setStreamConfig error: " + m);
           }
-          // Note: previously forced cloud phone screen to 1080×1920, which conflicted
-          // with the injected camera's native aspect ratio (causing letterboxing in the
-          // camera app). The canvas now matches the camera's native aspect; let the
-          // cloud phone keep its default screen resolution.
-          // try {
-          //   await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
-          // } catch (e) {
-          //   const m = e instanceof Error ? e.message : String(e);
-          //   setStatus("setScreenResolution error: " + m);
-          // }
+          // Force cloud phone screen to 1080×1920 (9:16) to match our injected
+          // canvas aspect ratio — guarantees the camera app fills with zero bars.
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
+          }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
             setStatus("Connected · camera: " + (s as any).status);
