@@ -27,6 +27,7 @@ export interface UseCloudPhoneResult {
   start: () => Promise<void>;
   stop: () => void;
   refreshStream: () => Promise<void>;
+  sendKey: (keyCode: number) => void;
 }
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
@@ -832,6 +833,14 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   };
 
 
-  return { status, start, stop, refreshStream };
+  const sendKey = (keyCode: number) => {
+    try {
+      (engineRef.current as any)?.triggerKeyboardShortcut?.(0, keyCode);
+    } catch (e) {
+      console.warn("[CloudPhone] sendKey failed", keyCode, e);
+    }
+  };
+
+  return { status, start, stop, refreshStream, sendKey };
 }
 

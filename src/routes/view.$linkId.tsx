@@ -138,7 +138,7 @@ function Viewer({
   label: string;
   session: SessionRow;
 }) {
-  const { status, start, stop, refreshStream } = useCloudPhone({
+  const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
     mode: "viewer",
     padCode,
     viewId: "phoneBox",
@@ -257,6 +257,33 @@ function Viewer({
             Tap to play
           </button>
         </div>
+
+        {connected && (
+          <div className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+            <span className="mr-2 text-xs text-muted-foreground">Phone nav:</span>
+            <button
+              onClick={() => sendKey(158)}
+              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
+              title="Back (KEYCODE_BACK)"
+            >
+              ◀ Back
+            </button>
+            <button
+              onClick={() => sendKey(172)}
+              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
+              title="Home (KEYCODE_HOME)"
+            >
+              ● Home
+            </button>
+            <button
+              onClick={() => sendKey(187)}
+              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
+              title="Recents (KEYCODE_APP_SWITCH)"
+            >
+              ▭ Recents
+            </button>
+          </div>
+        )}
 
         <p className="text-xs text-muted-foreground">{status}</p>
       </div>
