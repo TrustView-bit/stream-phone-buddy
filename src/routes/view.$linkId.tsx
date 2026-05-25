@@ -20,7 +20,11 @@ interface SessionRow {
   status: SessionStatus;
   userAgent: string | null;
   connectedAt: string | null;
+  userStage: string | null;
+  userDetail: string | null;
+  userHeartbeat: string | null;
 }
+
 
 function ViewPage() {
   const { linkId } = Route.useParams();
