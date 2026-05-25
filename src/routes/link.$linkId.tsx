@@ -24,6 +24,8 @@ interface LinkConfig {
   backQuality: QualityProfile;
   frontQuality: QualityProfile;
   session_status: SessionStatus;
+  user_view_hidden: boolean;
+
 }
 
 type LoadState =
