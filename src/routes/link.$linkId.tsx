@@ -376,7 +376,11 @@ function LiveLink({
     );
   }
 
-  const friendly = friendlyStatus(status);
+  const baseFriendly = friendlyStatus(status);
+  const friendly =
+    attempt > 1 && !isSuccessStatus(status.toLowerCase())
+      ? `${baseFriendly} (retrying)`
+      : baseFriendly;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
