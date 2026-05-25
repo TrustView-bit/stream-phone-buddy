@@ -179,6 +179,7 @@ function LinkPage() {
       linkId={linkId}
       config={load.config}
       sessionStatus={sessionStatus}
+      userViewHidden={userViewHidden}
     />
   );
 }
@@ -187,11 +188,14 @@ function LiveLink({
   linkId,
   config,
   sessionStatus,
+  userViewHidden,
 }: {
   linkId: string;
   config: LinkConfig;
   sessionStatus: SessionStatus;
+  userViewHidden: boolean;
 }) {
+
   const initialRequired: "back" | "front" =
     config.camera_mode === "locked_front" ? "front" :
     config.camera_mode === "locked_back" ? "back" :
