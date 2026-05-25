@@ -425,6 +425,57 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
+  // Report user stage to DB so admin Control Center can see live state.
+  useEffect(() => {
+    if (exhausted) {
+      reportStage("failed", status || null);
+      return;
+    }
+    if (permissionError) {
+      reportStage("permission_denied", permissionError);
+      return;
+    }
+    if (!tapStarted) {
+      reportStage("opened");
+      return;
+    }
+    if (isSuccessStatus(status)) {
+      reportStage("live");
+      return;
+    }
+    if (retryAttempt > 0) {
+      reportStage("retrying", `attempt ${retryAttempt}/3`);
+      return;
+    }
+    if (sessionStatus === "idle" || sessionStatus === "preparing" || sessionStatus === "ready_for_user") {
+      // Once we've actually kicked off a connect, surface as "connecting"
+      if (startedRef.current || inTransitionRef.current) {
+        reportStage("connecting", status || null);
+      } else {
+        reportStage("waiting");
+      }
+      return;
+    }
+    reportStage("connecting", status || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tapStarted, permissionError, exhausted, status, sessionStatus, retryAttempt]);
+
+  // Heartbeat: while page is open and user has tapped Start, ping the DB every 5s.
+  useEffect(() => {
+    if (!tapStarted) return;
+    const ping = () => {
+      void supabase
+        .from("links")
+        .update({ user_heartbeat: new Date().toISOString() } as any)
+        .eq("id", linkId);
+    };
+    ping();
+    const id = setInterval(ping, 5000);
+    return () => clearInterval(id);
+  }, [tapStarted, linkId]);
+
+
+
   // GDPR safety: apply curtain by pausing the downstream video the user receives.
   // Default-hidden — pause whenever userViewHidden is true OR while we're still uncertain.
   // Resume only when admin explicitly reveals (userViewHidden === false).
