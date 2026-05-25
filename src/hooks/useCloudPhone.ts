@@ -733,7 +733,17 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           if (cameraModeRef.current !== "dynamic") return;
           if (stats?.enabled !== true) return;
           const target: Facing = stats?.isFront ? "front" : "back";
-          void switchToCamera(target);
+          // Ignore redundant toggles: same facing + capture already live.
+          const liveTrack = rawCameraRef.current?.getVideoTracks()[0];
+          if (
+            currentFacingRef.current === target &&
+            liveTrack?.readyState === "live"
+          ) {
+            return;
+          }
+          void switchToCamera(target).catch((e) => {
+            console.warn("[CloudPhone] switchToCamera (toggle) swallowed", e);
+          });
         },
         onAutoRecoveryTime: () => {
           console.log("[CloudPhone] onAutoRecoveryTime → engine.start()");
