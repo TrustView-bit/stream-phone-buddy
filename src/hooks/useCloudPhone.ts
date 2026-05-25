@@ -603,29 +603,40 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         __cloudPhoneGumPatchVersion?: string;
       };
 
+      const md = navigator.mediaDevices;
       if (!w.__cloudPhoneOrigGetUserMedia) {
-        const md = navigator.mediaDevices;
         w.__cloudPhoneOrigGetUserMedia = md.getUserMedia.bind(md);
       }
 
-      if (w.__cloudPhoneGumPatchVersion !== "canvas-v4-visible") {
-        const md = navigator.mediaDevices;
-        md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
-          if (!constraints?.video) return w.__cloudPhoneOrigGetUserMedia!(constraints);
+      // Always reinstall the patch on each start() so a reset/reconnect (which
+      // may not have run a clean stop()) still gets a fresh, working injection
+      // bound to the CURRENT canvasCameraRef.
+      w.__cloudPhoneGumPatchVersion = undefined;
+      console.log("[CloudPhone] Installing getUserMedia canvas patch", {
+        canvasReady: !!canvasCameraRef.current,
+        trackState: canvasCameraRef.current?.getVideoTracks()[0]?.readyState,
+      });
+      md.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+        if (!constraints?.video) return w.__cloudPhoneOrigGetUserMedia!(constraints);
 
-          const canvasStream = canvasCameraRef.current;
-          const canvasTrack = canvasStream?.getVideoTracks()[0];
-          if (!canvasStream || !canvasTrack || canvasTrack.readyState === "ended") {
-            throw new DOMException("Canvas stream is not ready for SDK injection", "NotReadableError");
-          }
+        const canvasStream = canvasCameraRef.current;
+        const canvasTrack = canvasStream?.getVideoTracks()[0];
+        console.log("[CloudPhone] Patched getUserMedia called", {
+          hasCanvas: !!canvasStream,
+          trackState: canvasTrack?.readyState,
+        });
+        if (!canvasStream || !canvasTrack || canvasTrack.readyState === "ended") {
+          console.warn("[CloudPhone] Canvas stream not ready — SDK would get real camera; throwing instead");
+          throw new DOMException("Canvas stream is not ready for SDK injection", "NotReadableError");
+        }
 
-          const sdkStream = new MediaStream([canvasTrack.clone()]);
-          (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
-          setStatus("Camera active");
-          return sdkStream;
-        };
-        w.__cloudPhoneGumPatchVersion = "canvas-v4-visible";
-      }
+        const sdkStream = new MediaStream([canvasTrack.clone()]);
+        (sdkStream as MediaStream & { __cloudPhoneSource?: string }).__cloudPhoneSource = "canvas-captureStream";
+        setStatus("Camera active");
+        return sdkStream;
+      };
+      w.__cloudPhoneGumPatchVersion = "canvas-v5-always-reinstall";
+
     }
 
 
