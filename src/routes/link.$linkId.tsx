@@ -469,16 +469,23 @@ function LiveLink({
   // Heartbeat: while page is open and user has tapped Start, ping the DB every 5s.
   useEffect(() => {
     if (!tapStarted) return;
-    const ping = () => {
-      void supabase
+    const ping = async () => {
+      const ts = new Date().toISOString();
+      const { error } = await supabase
         .from("links")
-        .update({ user_heartbeat: new Date().toISOString() } as any)
+        .update({ user_heartbeat: ts } as any)
         .eq("id", linkId);
+      if (error) {
+        console.error("[LinkPage] heartbeat write failed", { ts, error });
+      } else {
+        console.log("[LinkPage] heartbeat wrote", ts);
+      }
     };
-    ping();
-    const id = setInterval(ping, 5000);
+    void ping();
+    const id = setInterval(() => { void ping(); }, 5000);
     return () => clearInterval(id);
   }, [tapStarted, linkId]);
+
 
 
 
