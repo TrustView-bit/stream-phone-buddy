@@ -236,6 +236,32 @@ function Viewer({
         <SessionBox session={session} />
 
         <div
+          className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
+            userViewHidden ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-muted/30"
+          }`}
+        >
+          <div>
+            <div className="font-medium">
+              User view: {userViewHidden ? <span className="text-amber-600">HIDDEN</span> : "VISIBLE"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Camera & connection stay live regardless.
+            </div>
+          </div>
+          <button
+            onClick={() => void setUserViewHidden(linkId, !userViewHidden)}
+            className={`rounded-md px-4 py-2 text-sm font-medium ${
+              userViewHidden
+                ? "bg-amber-500 text-white hover:bg-amber-500/90"
+                : "border border-input bg-background hover:bg-accent"
+            }`}
+          >
+            {userViewHidden ? "Show user view" : "Hide user view"}
+          </button>
+        </div>
+
+
+        <div
           id="phoneBox"
           className="aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg"
         />
