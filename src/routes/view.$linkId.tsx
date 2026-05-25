@@ -152,12 +152,15 @@ function Viewer({
   padCode,
   label,
   session,
+  userViewHidden,
 }: {
   linkId: string;
   padCode: string;
   label: string;
   session: SessionRow;
+  userViewHidden: boolean;
 }) {
+
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
     mode: "viewer",
     padCode,
