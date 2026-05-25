@@ -577,7 +577,7 @@ function IdDocumentAnimation() {
 function CenteredShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-12 text-center">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 pt-6 pb-12 text-center">
         {children}
       </div>
     </div>
