@@ -267,9 +267,8 @@ function Viewer({
   };
 
   const onReady = async () => {
-    // 1) default user view to HIDDEN (GDPR safety) BEFORE the user connects
-    await onToggleHidden(true);
-    // 2) update status, 3) kick admin out FIRST
+    // Default user view to SHOWN (admin can hide via toggle).
+    await onToggleHidden(false);
     await updateSessionStatus(linkId, "ready_for_user");
     stop();
     setConnected(false);
@@ -282,7 +281,7 @@ function Viewer({
     setConnected(false);
     autoReconnectRef.current = false;
     liveMarkedRef.current = false;
-    await onToggleHidden(true);
+    await onToggleHidden(false);
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
       session_connected_at: null,
