@@ -133,11 +133,28 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     const getRawUserMedia = w.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
     let videoInputs: MediaDeviceInfo[] = [];
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      videoInputs = devices.filter((d) => d.kind === "videoinput");
-    } catch (e) {
-      console.warn("[CloudPhone] enumerateDevices failed", e);
+    const enumerate = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoInputs = devices.filter((d) => d.kind === "videoinput");
+      } catch (e) {
+        console.warn("[CloudPhone] enumerateDevices failed", e);
+      }
+    };
+    await enumerate();
+
+    // Firefox: labels are blank until getUserMedia has been granted once.
+    // Prime with a permissive call so subsequent enumerateDevices returns labels.
+    const labelsBlank = videoInputs.length === 0 || videoInputs.every((d) => !d.label);
+    if (labelsBlank) {
+      try {
+        console.log("[CloudPhone] Priming getUserMedia to unlock device labels");
+        const primer = await getRawUserMedia({ video: true });
+        primer.getTracks().forEach((t) => t.stop());
+        await enumerate();
+      } catch (e) {
+        console.warn("[CloudPhone] Primer getUserMedia failed", e);
+      }
     }
 
     const matchBack = (l: string) => {
@@ -151,6 +168,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
     let stream: MediaStream | null = null;
     let error = "";
+    let lastErrName = "";
 
     if (preferred) {
       try {
@@ -163,6 +181,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
+        lastErrName = err?.name ?? "";
         error = `deviceId exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
         console.warn("[CloudPhone]", error);
       }
@@ -179,7 +198,40 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         });
       } catch (e) {
         const err = e as { name?: string; message?: string };
+        lastErrName = err?.name ?? "";
         error += ` | facingMode exact failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+        console.warn("[CloudPhone] facingMode exact failed", err);
+      }
+    }
+
+    // Firefox-friendly: ideal facingMode (not exact)
+    if (!stream) {
+      try {
+        stream = await getRawUserMedia({
+          video: {
+            facingMode: { ideal: facing === "back" ? "environment" : "user" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+        });
+        console.log("[CloudPhone] Acquired via facingMode ideal fallback");
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        lastErrName = err?.name ?? "";
+        error += ` | facingMode ideal failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
+        console.warn("[CloudPhone] facingMode ideal failed", err);
+      }
+    }
+
+    // Last resort: any camera
+    if (!stream) {
+      try {
+        stream = await getRawUserMedia({ video: true });
+        console.warn("[CloudPhone] Fell back to plain { video: true } — facing preference not enforced");
+      } catch (e) {
+        const err = e as { name?: string; message?: string };
+        lastErrName = err?.name ?? "";
+        error += ` | plain video failed: ${err?.name ?? "Error"}: ${err?.message ?? String(e)}`;
       }
     }
 
@@ -199,10 +251,24 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       console.log(
         `[CloudPhone] Camera acquired: ${facing} | ${track?.label ?? "(no label)"} | ${s?.width ?? "?"}×${s?.height ?? "?"} | facingMode=${s?.facingMode ?? "?"}`,
       );
+      return { stream, error: "" };
     }
 
-    return { stream, error };
+    // Map error to a meaningful message
+    let friendly = error;
+    if (lastErrName === "NotAllowedError" || lastErrName === "SecurityError") {
+      friendly = "camera permission denied";
+    } else if (lastErrName === "NotFoundError" || lastErrName === "DevicesNotFoundError") {
+      friendly = "no camera found on this device";
+    } else if (lastErrName === "OverconstrainedError" || lastErrName === "ConstraintNotSatisfiedError") {
+      friendly = "camera constraints not supported";
+    } else if (lastErrName === "NotReadableError" || lastErrName === "TrackStartError") {
+      friendly = "camera is in use by another app";
+    }
+
+    return { stream: null, error: friendly || error || "camera unavailable" };
   };
+
 
   /**
    * Live-swap the raw camera feeding the hidden video element. The canvas,
