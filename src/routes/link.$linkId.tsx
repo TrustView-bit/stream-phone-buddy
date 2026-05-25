@@ -339,9 +339,11 @@ function LiveLink({
       if (isRecoveringStatus(s)) { scheduleWatchdog(); return; }
       if (watchdogAttemptRef.current >= 3) { setExhausted(true); return; }
       watchdogAttemptRef.current += 1;
+      setRetryAttempt(watchdogAttemptRef.current);
       void runTransition(true);
     }, 6000);
   };
+
 
   const runTransition = async (force = false) => {
     if (inTransitionRef.current && !force) return;
