@@ -414,64 +414,68 @@ function LiveLink({
     );
   }
 
-  // ===== Waiting / Connecting screen =====
+  // ===== Connecting + Live screen =====
+  // IMPORTANT: keep #phoneBox mounted at the same DOM node across states,
+  // otherwise the SDK attaches video to a node we later unmount.
   const live = isSuccessStatus(status);
 
-  if (!live) {
-    return (
-      <CenteredShell>
-        <BrandHeader />
-        <div className="mt-10 flex flex-col items-center">
-          <IdDocumentAnimation />
-          <p
-            key={tipIndex}
-            className="mt-10 min-h-[3rem] text-center text-base font-medium text-foreground animate-in fade-in duration-500"
-          >
-            {WAITING_TIPS[tipIndex]}
-          </p>
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <span>
-              {isRecoveringStatus(status)
-                ? "Riconnessione in corso…"
-                : sessionStatus === "idle" || sessionStatus === "preparing"
-                  ? "In attesa dell'avvio della sessione…"
-                  : "Connessione della fotocamera in corso…"}
-            </span>
-          </div>
-        </div>
-
-        {/* Hidden phone box so the SDK can still attach the stream when ready */}
-        <div className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0">
-          <div id="phoneBox" className="h-full w-full" />
-          <button id="playBtn" hidden>play</button>
-        </div>
-      </CenteredShell>
-    );
-  }
-
-  // ===== Live screen =====
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-8">
+    <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-10 text-center">
         <BrandHeader />
-        <h1 className="text-center text-xl font-semibold tracking-tight">Verifica in corso</h1>
-        <p className="text-center text-sm text-muted-foreground">
-          La tua fotocamera è collegata. Segui le istruzioni sullo schermo.
-        </p>
 
-        <div className="relative aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-2xl bg-muted shadow-xl ring-1 ring-border">
+        {live && (
+          <>
+            <h1 className="mt-6 text-xl font-semibold tracking-tight">Verifica in corso</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              La tua fotocamera è collegata. Segui le istruzioni sullo schermo.
+            </p>
+          </>
+        )}
+
+        <div
+          className={
+            "relative mt-6 aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-2xl " +
+            (live ? "bg-muted shadow-xl ring-1 ring-border" : "bg-transparent")
+          }
+        >
+          {/* Always-mounted phone box — the SDK attaches here */}
           <div id="phoneBox" className="absolute inset-0 h-full w-full" />
+
+          {/* Overlay: waiting / connecting UI */}
+          {!live && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 rounded-2xl bg-background/95 px-4">
+              <IdDocumentAnimation />
+              <p
+                key={tipIndex}
+                className="min-h-[3rem] text-center text-base font-medium text-foreground animate-in fade-in duration-500"
+              >
+                {WAITING_TIPS[tipIndex]}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                <span>
+                  {isRecoveringStatus(status)
+                    ? "Riconnessione in corso…"
+                    : sessionStatus === "idle" || sessionStatus === "preparing"
+                      ? "In attesa dell'avvio della sessione…"
+                      : "Connessione della fotocamera in corso…"}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
-        <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground">
+        <button id="playBtn" hidden className="mt-4 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground">
           Tocca per avviare
         </button>
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span>In diretta</span>
-        </div>
+        {live && (
+          <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span>In diretta</span>
+          </div>
+        )}
       </div>
     </div>
   );
