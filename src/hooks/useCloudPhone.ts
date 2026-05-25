@@ -653,6 +653,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       enableCamera: isInjector,
       enableMicrophone: false,
       viewId,
+      retryCount: 5,
+      retryTime: 2000,
       deviceInfo: {
         padCode,
         userId: crypto.randomUUID(),
