@@ -50,6 +50,22 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const rawCameraRef = useRef<MediaStream | null>(null);
   const canvasCameraRef = useRef<MediaStream | null>(null);
   const drawRafRef = useRef<number | null>(null);
+  const drawCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Size canvas to match the camera's native aspect ratio (cap longest side at 1920).
+  const sizeCanvasToVideo = (canvas: HTMLCanvasElement, vw: number, vh: number) => {
+    if (!vw || !vh) return;
+    const MAX = 1920;
+    const longest = Math.max(vw, vh);
+    const scale = longest > MAX ? MAX / longest : 1;
+    const w = Math.max(2, Math.round((vw * scale) / 2) * 2);
+    const h = Math.max(2, Math.round((vh * scale) / 2) * 2);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      console.log(`[CloudPhone] canvas resized to ${w}×${h} (camera native ${vw}×${vh}, aspect ${(vw/vh).toFixed(3)})`);
+    }
+  };
 
   // Live-updating facing for the draw loop's flip decision.
   const currentFacingRef = useRef<Facing>("back");
