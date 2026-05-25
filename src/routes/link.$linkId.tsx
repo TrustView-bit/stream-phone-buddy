@@ -247,7 +247,22 @@ function LiveLink({
   const [exhausted, setExhausted] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [finished, setFinished] = useState(false);
   const primingStreamRef = useRef<MediaStream | null>(null);
+
+  // Terminal "finished" state — once admin ends the session, fully tear down
+  // and lock the page on the thank-you screen for this page load.
+  useEffect(() => {
+    if (finished) return;
+    if (sessionStatus !== "finished") return;
+    setFinished(true);
+    try { stop(); } catch {}
+    startedRef.current = false;
+    injectionMarkedRef.current = false;
+    watchdogAttemptRef.current = 0;
+    releasePrimingStream();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus, finished]);
 
   // ---- User state reporting (observability for admin Control Center) ----
   const lastStageRef = useRef<string | null>(null);
