@@ -731,16 +731,14 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
             const m = e instanceof Error ? e.message : String(e);
             setStatus("setStreamConfig error: " + m);
           }
-          // Note: previously forced cloud phone screen to 1080×1920, which conflicted
-          // with the injected camera's native aspect ratio (causing letterboxing in the
-          // camera app). The canvas now matches the camera's native aspect; let the
-          // cloud phone keep its default screen resolution.
-          // try {
-          //   await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
-          // } catch (e) {
-          //   const m = e instanceof Error ? e.message : String(e);
-          //   setStatus("setScreenResolution error: " + m);
-          // }
+          // Force cloud phone screen to 1080×1920 (9:16) to match our injected
+          // canvas aspect ratio — guarantees the camera app fills with zero bars.
+          try {
+            await (engineRef.current as any).setScreenResolution({ width: 1080, height: 1920, dpi: 480, type: 'updateDensity' });
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            setStatus("setScreenResolution error: " + m);
+          }
           try {
             const s = await engineRef.current!.getInjectStreamStatus("camera" as any, 5000);
             setStatus("Connected · camera: " + (s as any).status);
