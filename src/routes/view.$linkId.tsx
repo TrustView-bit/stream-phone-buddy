@@ -114,8 +114,21 @@ function ViewPage() {
       </div>
     );
   }
-  return <Viewer linkId={linkId} padCode={padCode} label={label} session={session} />;
+  return <Viewer linkId={linkId} padCode={padCode} label={label} session={session} userViewHidden={userViewHidden} />;
 }
+
+async function setUserViewHidden(linkId: string, hidden: boolean) {
+  const result = await supabase
+    .from("links")
+    .update({ user_view_hidden: hidden } as any)
+    .eq("id", linkId);
+  if (result.error) {
+    console.error("[ViewPage] user_view_hidden update failed", { linkId, hidden, error: result.error });
+    return false;
+  }
+  return true;
+}
+
 
 async function updateSessionStatus(linkId: string, status: SessionStatus, extra?: Record<string, any>) {
   const result = await supabase
