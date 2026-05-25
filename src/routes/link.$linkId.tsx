@@ -415,7 +415,7 @@ function LiveLink({
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Couldn't connect after several attempts.
+          Couldn't connect. Tap to try again.
         </p>
         <button
           onClick={() => {
@@ -428,7 +428,7 @@ function LiveLink({
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
-          Couldn't connect — tap to retry
+          Try again
         </button>
         <DebugBar
           sessionStatus={sessionStatus}
