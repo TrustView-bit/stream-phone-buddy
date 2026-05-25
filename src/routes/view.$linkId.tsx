@@ -269,7 +269,7 @@ function Viewer({
               ◀ Back
             </button>
             <button
-              onClick={() => sendKey(172)}
+              onClick={() => sendKey(3)}
               className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
               title="Home (KEYCODE_HOME)"
             >
