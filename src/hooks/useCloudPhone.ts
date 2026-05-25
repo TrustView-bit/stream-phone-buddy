@@ -735,7 +735,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const target: Facing = stats?.isFront ? "front" : "back";
           void switchToCamera(target);
         },
-        onAutoRecoveryTime: () => engineRef.current?.start(),
+        onAutoRecoveryTime: () => {
+          console.log("[CloudPhone] onAutoRecoveryTime → engine.start()");
+          engineRef.current?.start();
+        },
       },
     });
   };
