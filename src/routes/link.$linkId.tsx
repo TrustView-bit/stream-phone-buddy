@@ -246,7 +246,22 @@ function LiveLink({
   const [tapStarted, setTapStarted] = useState(false);
   const [exhausted, setExhausted] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const primingStreamRef = useRef<MediaStream | null>(null);
+
+  // ---- User state reporting (observability for admin Control Center) ----
+  const lastStageRef = useRef<string | null>(null);
+  const lastDetailRef = useRef<string | null>(null);
+  const reportStage = (stage: string, detail: string | null = null) => {
+    if (lastStageRef.current === stage && lastDetailRef.current === detail) return;
+    lastStageRef.current = stage;
+    lastDetailRef.current = detail;
+    void supabase
+      .from("links")
+      .update({ user_stage: stage, user_detail: detail } as any)
+      .eq("id", linkId);
+  };
+
 
   // Rotating tips during loading
   const [tipIndex, setTipIndex] = useState(0);
