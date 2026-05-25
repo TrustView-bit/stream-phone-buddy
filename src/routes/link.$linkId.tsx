@@ -206,6 +206,24 @@ function LiveLink({
   const startedRef = useRef(false);
   const injectionMarkedRef = useRef(false);
   const [tapStarted, setTapStarted] = useState(false);
+  const [attempt, setAttempt] = useState(0); // 1..3 once tapped
+  const [exhausted, setExhausted] = useState(false);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isFailureStatus = (s: string) =>
+    /error|failed|denied|token timed out|not available|unavailable/i.test(s);
+  const isSuccessStatus = (s: string) =>
+    /^connected|camera active/i.test(s);
+
+  const runStart = async () => {
+    startedRef.current = true;
+    try {
+      await start();
+    } catch (e) {
+      console.warn("[LinkPage] start() threw", e);
+      startedRef.current = false;
+    }
+  };
 
   // When injection succeeds, mark session_status = 'injecting' (once)
   useEffect(() => {
@@ -234,6 +252,42 @@ function LiveLink({
       }
     })();
   }, [status, linkId]);
+
+  // Retry watcher: react to hook status after the user tapped
+  useEffect(() => {
+    if (!tapStarted) return;
+    const s = status.toLowerCase();
+    if (isSuccessStatus(s)) {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      if (exhausted) setExhausted(false);
+      return;
+    }
+    if (isFailureStatus(s)) {
+      startedRef.current = false;
+      if (retryTimerRef.current) return; // already scheduled
+      setAttempt((cur) => {
+        if (cur >= 3) {
+          setExhausted(true);
+          return cur;
+        }
+        const next = cur + 1;
+        console.log("[LinkPage] connect failed, scheduling retry", { next, status: s });
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = null;
+          void runStart();
+        }, 2000);
+        return next;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, tapStarted]);
+
+  useEffect(() => () => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+  }, []);
 
   // Pre-connect waiting screen
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
@@ -268,14 +322,49 @@ function LiveLink({
         <button
           onClick={() => {
             if (startedRef.current) return;
-            startedRef.current = true;
             setTapStarted(true);
+            setAttempt(1);
+            setExhausted(false);
             console.log("[LinkPage] user tapped → start()");
-            void start();
+            void runStart();
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
           Tap to start your camera
+        </button>
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
+      </CenteredShell>
+    );
+  }
+
+  // Exhausted retry screen
+  if (exhausted) {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Couldn't connect after several attempts.
+        </p>
+        <button
+          onClick={() => {
+            if (retryTimerRef.current) {
+              clearTimeout(retryTimerRef.current);
+              retryTimerRef.current = null;
+            }
+            startedRef.current = false;
+            setExhausted(false);
+            setAttempt(1);
+            console.log("[LinkPage] user tapped retry");
+            void runStart();
+          }}
+          className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
+        >
+          Couldn't connect — tap to try again
         </button>
         <DebugBar
           sessionStatus={sessionStatus}
