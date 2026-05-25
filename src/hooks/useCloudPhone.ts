@@ -28,7 +28,10 @@ export interface UseCloudPhoneResult {
   stop: () => void;
   refreshStream: () => Promise<void>;
   sendKey: (keyCode: number) => void;
+  pauseDownstream: () => void;
+  resumeDownstream: () => void;
 }
+
 
 export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResult {
   const {
@@ -841,6 +844,24 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     }
   };
 
-  return { status, start, stop, refreshStream, sendKey };
+  const pauseDownstream = () => {
+    try {
+      console.log("[CloudPhone] pauseDownstream() — pausing subscribed video (mediaType 2)");
+      (engineRef.current as any)?.pauseAllSubscribedStream?.(2);
+    } catch (e) {
+      console.warn("[CloudPhone] pauseDownstream failed", e);
+    }
+  };
+
+  const resumeDownstream = () => {
+    try {
+      console.log("[CloudPhone] resumeDownstream() — resuming subscribed video (mediaType 2)");
+      (engineRef.current as any)?.resumeAllSubscribedStream?.(2);
+    } catch (e) {
+      console.warn("[CloudPhone] resumeDownstream failed", e);
+    }
+  };
+
+  return { status, start, stop, refreshStream, sendKey, pauseDownstream, resumeDownstream };
 }
 

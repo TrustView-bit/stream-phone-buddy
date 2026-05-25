@@ -44,7 +44,7 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
-  const [userViewHidden, setUserViewHidden] = useState(false);
+  const [userViewHidden, setUserViewHidden] = useState(true);
   const [, setStatusSource] = useState<StatusSource>("init");
   const [, setRtStatus] = useState<string>("connecting");
 
@@ -225,7 +225,7 @@ function LiveLink({
     config.camera_mode === "locked_back" ? "back" :
     "back";
 
-  const { status, start, stop } = useCloudPhone({
+  const { status, start, stop, pauseDownstream, resumeDownstream } = useCloudPhone({
     mode: "injector",
     cameraMode: config.camera_mode,
     requiredCamera: initialRequired,
@@ -404,6 +404,25 @@ function LiveLink({
     clearWatchdog();
     releasePrimingStream();
   }, []);
+
+  // GDPR safety: apply curtain by pausing the downstream video the user receives.
+  // Default-hidden — pause whenever userViewHidden is true OR while we're still uncertain.
+  // Resume only when admin explicitly reveals (userViewHidden === false).
+  useEffect(() => {
+    if (!isSuccessStatus(status)) return;
+    if (userViewHidden) {
+      console.log("[link] applying curtain: pauseDownstream()");
+      pauseDownstream();
+      // Re-assert shortly after in case the SDK auto-resumed during connect.
+      const t = setTimeout(() => pauseDownstream(), 300);
+      return () => clearTimeout(t);
+    } else {
+      console.log("[link] revealing: resumeDownstream()");
+      resumeDownstream();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userViewHidden, status]);
+
 
   const [live, setLive] = useState(false);
 

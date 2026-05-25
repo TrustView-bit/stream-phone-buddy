@@ -250,7 +250,9 @@ function Viewer({
   };
 
   const onReady = async () => {
-    // 1) update status, 2) kick admin out FIRST
+    // 1) default user view to HIDDEN (GDPR safety) BEFORE the user connects
+    await onToggleHidden(true);
+    // 2) update status, 3) kick admin out FIRST
     await updateSessionStatus(linkId, "ready_for_user");
     stop();
     setConnected(false);
@@ -263,11 +265,13 @@ function Viewer({
     setConnected(false);
     autoReconnectRef.current = false;
     liveMarkedRef.current = false;
+    await onToggleHidden(true);
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
       session_connected_at: null,
     });
   };
+
 
   // When the user starts injecting, auto-reconnect admin in viewer mode
   useEffect(() => {
@@ -323,7 +327,7 @@ function Viewer({
                 : "border border-input bg-background hover:bg-accent"
             }`}
           >
-            {userViewHidden ? "Show user view" : "Hide user view"}
+            {userViewHidden ? "Reveal user view" : "Hide user view"}
           </button>
         </div>
 
