@@ -308,7 +308,7 @@ function Viewer({
             </div>
           </div>
           <button
-            onClick={() => void setUserViewHidden(linkId, !userViewHidden)}
+            onClick={() => void onToggleHidden(!userViewHidden)}
             className={`rounded-md px-4 py-2 text-sm font-medium ${
               userViewHidden
                 ? "bg-amber-500 text-white hover:bg-amber-500/90"
