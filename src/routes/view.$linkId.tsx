@@ -475,3 +475,64 @@ function SessionBox({ session }: { session: SessionRow }) {
     </div>
   );
 }
+
+const STAGE_META: Record<string, { label: string; dot: string; tone: string }> = {
+  opened:            { label: "Page opened",        dot: "bg-muted-foreground/50",        tone: "border-border bg-muted/30" },
+  tapped_start:      { label: "Tapped Start",       dot: "bg-amber-500",                  tone: "border-amber-500/40 bg-amber-500/5" },
+  permission_denied: { label: "Camera denied",      dot: "bg-red-500",                    tone: "border-red-500/40 bg-red-500/5" },
+  waiting:           { label: "Waiting for session", dot: "bg-muted-foreground/50",       tone: "border-border bg-muted/30" },
+  connecting:        { label: "Connecting…",        dot: "bg-amber-500 animate-pulse",    tone: "border-amber-500/40 bg-amber-500/5" },
+  retrying:          { label: "Retrying…",          dot: "bg-amber-500 animate-pulse",    tone: "border-amber-500/40 bg-amber-500/5" },
+  live:              { label: "Live",               dot: "bg-green-500",                  tone: "border-primary/40 bg-primary/5" },
+  failed:            { label: "Failed",             dot: "bg-red-500",                    tone: "border-red-500/40 bg-red-500/5" },
+};
+
+function UserStatusPanel({
+  stage,
+  detail,
+  heartbeat,
+}: {
+  stage: string | null;
+  detail: string | null;
+  heartbeat: string | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const meta = (stage && STAGE_META[stage]) || {
+    label: stage ?? "No report yet",
+    dot: "bg-muted-foreground/40",
+    tone: "border-border bg-muted/30",
+  };
+
+  const hbMs = heartbeat ? now - new Date(heartbeat).getTime() : null;
+  const hbSec = hbMs != null ? Math.max(0, Math.floor(hbMs / 1000)) : null;
+  const stale = hbSec != null && hbSec > 15;
+
+  return (
+    <div className={`w-full rounded-md border px-4 py-3 text-sm ${meta.tone}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
+        <span className="font-medium">User: {meta.label}</span>
+      </div>
+      {detail && (
+        <div className="mt-1 break-words text-xs text-muted-foreground">{detail}</div>
+      )}
+      <div className="mt-2 text-xs text-muted-foreground">
+        {hbSec == null ? (
+          <span>No heartbeat yet</span>
+        ) : (
+          <span>Last seen: {hbSec}s ago</span>
+        )}
+      </div>
+      {stale && (
+        <div className="mt-1 text-xs font-medium text-red-600">
+          User may have disconnected or closed the page.
+        </div>
+      )}
+    </div>
+  );
+}
