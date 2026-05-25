@@ -111,10 +111,8 @@ function LinkPage() {
             setStatusSource("realtime");
           }
           if (typeof n?.user_view_hidden === "boolean") {
-            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
+            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via postgres_changes`, { linkId });
             setUserViewHidden(n.user_view_hidden);
-          } else {
-            console.log("[LinkPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
@@ -122,8 +120,20 @@ function LinkPage() {
       .subscribe((status) => {
         setRtStatus(String(status).toLowerCase());
       });
+
+    // Instant curtain broadcast channel — faster than postgres_changes
+    const curtain = supabase
+      .channel(`curtain-${linkId}`)
+      .on("broadcast", { event: "set_hidden" }, (msg) => {
+        const hidden = Boolean((msg.payload as any)?.hidden);
+        console.log(`[LinkPage] received broadcast set_hidden = ${hidden}`, { linkId });
+        setUserViewHidden(hidden);
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(curtain);
     };
   }, [linkId]);
 
@@ -132,7 +142,7 @@ function LinkPage() {
     const id = setInterval(async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("session_status")
+        .select("session_status, user_view_hidden")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled || error || !data) return;
@@ -141,7 +151,12 @@ function LinkPage() {
         if (prev !== next) setStatusSource("poll");
         return next;
       });
-    }, 2000);
+      if (typeof (data as any).user_view_hidden === "boolean") {
+        setUserViewHidden((prev) =>
+          prev === (data as any).user_view_hidden ? prev : (data as any).user_view_hidden,
+        );
+      }
+    }, 500);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -551,7 +566,7 @@ function LiveLink({
 
       {/* Admin-controlled curtain — covers user's view while connection & camera stay live */}
       {userViewHidden && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-background to-muted/30 px-6 text-center text-foreground">
+        <div className="fixed inset-0 z-[100] flex h-screen w-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center text-foreground" style={{ opacity: 1 }}>
           <BrandHeader />
           <div className="flex flex-col items-center gap-4">
             <span className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
