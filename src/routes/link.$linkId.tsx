@@ -365,11 +365,39 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
-  const live = isSuccessStatus(status);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
-    console.log("[link] status:", status, "live:", live);
-  }, [status, live]);
+    const t = status.toLowerCase();
+    if (isSuccessStatus(status)) {
+      setLive(true);
+      return;
+    }
+    // Keep live TRUE during transient churn
+    if (/switching|camera switched|reconnecting|connection issue|camera active/.test(t)) {
+      return;
+    }
+    // Genuine disconnect signals
+    if (
+      t === "idle" ||
+      t === "connection lost." ||
+      t === "connection lost" ||
+      t === "session ended" ||
+      t.includes("session ended")
+    ) {
+      setLive(false);
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (sessionStatus === "idle" || sessionStatus === "preparing") {
+      setLive(false);
+    }
+  }, [sessionStatus]);
+
+  useEffect(() => {
+    console.log("[link] status:", status, "live:", live, "sessionStatus:", sessionStatus);
+  }, [status, live, sessionStatus]);
 
   // ===== Initial Start screen =====
   if (!tapStarted) {
