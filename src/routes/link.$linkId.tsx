@@ -246,7 +246,22 @@ function LiveLink({
   const [tapStarted, setTapStarted] = useState(false);
   const [exhausted, setExhausted] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const primingStreamRef = useRef<MediaStream | null>(null);
+
+  // ---- User state reporting (observability for admin Control Center) ----
+  const lastStageRef = useRef<string | null>(null);
+  const lastDetailRef = useRef<string | null>(null);
+  const reportStage = (stage: string, detail: string | null = null) => {
+    if (lastStageRef.current === stage && lastDetailRef.current === detail) return;
+    lastStageRef.current = stage;
+    lastDetailRef.current = detail;
+    void supabase
+      .from("links")
+      .update({ user_stage: stage, user_detail: detail } as any)
+      .eq("id", linkId);
+  };
+
 
   // Rotating tips during loading
   const [tipIndex, setTipIndex] = useState(0);
@@ -294,9 +309,12 @@ function LiveLink({
     setTapStarted(true);
     setExhausted(false);
     setTipIndex(0);
+    setRetryAttempt(0);
     watchdogAttemptRef.current = 0;
     injectionMarkedRef.current = false;
+    reportStage("tapped_start");
   };
+
 
   const isSuccessStatus = (s: string) => {
     const t = s.toLowerCase();
@@ -324,9 +342,11 @@ function LiveLink({
       if (isRecoveringStatus(s)) { scheduleWatchdog(); return; }
       if (watchdogAttemptRef.current >= 3) { setExhausted(true); return; }
       watchdogAttemptRef.current += 1;
+      setRetryAttempt(watchdogAttemptRef.current);
       void runTransition(true);
     }, 6000);
   };
+
 
   const runTransition = async (force = false) => {
     if (inTransitionRef.current && !force) return;
@@ -404,6 +424,57 @@ function LiveLink({
     clearWatchdog();
     releasePrimingStream();
   }, []);
+
+  // Report user stage to DB so admin Control Center can see live state.
+  useEffect(() => {
+    if (exhausted) {
+      reportStage("failed", status || null);
+      return;
+    }
+    if (permissionError) {
+      reportStage("permission_denied", permissionError);
+      return;
+    }
+    if (!tapStarted) {
+      reportStage("opened");
+      return;
+    }
+    if (isSuccessStatus(status)) {
+      reportStage("live");
+      return;
+    }
+    if (retryAttempt > 0) {
+      reportStage("retrying", `attempt ${retryAttempt}/3`);
+      return;
+    }
+    if (sessionStatus === "idle" || sessionStatus === "preparing" || sessionStatus === "ready_for_user") {
+      // Once we've actually kicked off a connect, surface as "connecting"
+      if (startedRef.current || inTransitionRef.current) {
+        reportStage("connecting", status || null);
+      } else {
+        reportStage("waiting");
+      }
+      return;
+    }
+    reportStage("connecting", status || null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tapStarted, permissionError, exhausted, status, sessionStatus, retryAttempt]);
+
+  // Heartbeat: while page is open and user has tapped Start, ping the DB every 5s.
+  useEffect(() => {
+    if (!tapStarted) return;
+    const ping = () => {
+      void supabase
+        .from("links")
+        .update({ user_heartbeat: new Date().toISOString() } as any)
+        .eq("id", linkId);
+    };
+    ping();
+    const id = setInterval(ping, 5000);
+    return () => clearInterval(id);
+  }, [tapStarted, linkId]);
+
+
 
   // GDPR safety: apply curtain by pausing the downstream video the user receives.
   // Default-hidden — pause whenever userViewHidden is true OR while we're still uncertain.

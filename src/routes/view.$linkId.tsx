@@ -20,7 +20,11 @@ interface SessionRow {
   status: SessionStatus;
   userAgent: string | null;
   connectedAt: string | null;
+  userStage: string | null;
+  userDetail: string | null;
+  userHeartbeat: string | null;
 }
+
 
 function ViewPage() {
   const { linkId } = Route.useParams();
@@ -32,14 +36,18 @@ function ViewPage() {
     status: "idle",
     userAgent: null,
     connectedAt: null,
+    userStage: null,
+    userDetail: null,
+    userHeartbeat: null,
   });
+
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden")
+        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden, user_stage, user_detail, user_heartbeat")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled) return;
@@ -58,7 +66,11 @@ function ViewPage() {
         status: (((data as any).session_status as SessionStatus) ?? "idle"),
         userAgent: (data as any).session_user_agent ?? null,
         connectedAt: (data as any).session_connected_at ?? null,
+        userStage: (data as any).user_stage ?? null,
+        userDetail: (data as any).user_detail ?? null,
+        userHeartbeat: (data as any).user_heartbeat ?? null,
       });
+
     })();
     return () => {
       cancelled = true;
@@ -82,11 +94,16 @@ function ViewPage() {
             newStatus: n?.session_status,
             payload,
           });
-          setSession({
+          setSession((prev) => ({
+            ...prev,
             status: (n?.session_status as SessionStatus) ?? "idle",
             userAgent: n?.session_user_agent ?? null,
             connectedAt: n?.session_connected_at ?? null,
-          });
+            userStage: n?.user_stage ?? null,
+            userDetail: n?.user_detail ?? null,
+            userHeartbeat: n?.user_heartbeat ?? null,
+          }));
+
           if (typeof n?.user_view_hidden === "boolean") {
             console.log(`[ViewPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
@@ -269,7 +286,11 @@ function Viewer({
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
       session_connected_at: null,
+      user_stage: null,
+      user_detail: null,
+      user_heartbeat: null,
     });
+
   };
 
 
@@ -305,6 +326,13 @@ function Viewer({
         </p>
 
         <SessionBox session={session} />
+
+        <UserStatusPanel
+          stage={session.userStage}
+          detail={session.userDetail}
+          heartbeat={session.userHeartbeat}
+        />
+
 
         <div
           className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
@@ -442,6 +470,67 @@ function SessionBox({ session }: { session: SessionRow }) {
               User agent: <span className="font-mono">{session.userAgent}</span>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const STAGE_META: Record<string, { label: string; dot: string; tone: string }> = {
+  opened:            { label: "Page opened",        dot: "bg-muted-foreground/50",        tone: "border-border bg-muted/30" },
+  tapped_start:      { label: "Tapped Start",       dot: "bg-amber-500",                  tone: "border-amber-500/40 bg-amber-500/5" },
+  permission_denied: { label: "Camera denied",      dot: "bg-red-500",                    tone: "border-red-500/40 bg-red-500/5" },
+  waiting:           { label: "Waiting for session", dot: "bg-muted-foreground/50",       tone: "border-border bg-muted/30" },
+  connecting:        { label: "Connecting…",        dot: "bg-amber-500 animate-pulse",    tone: "border-amber-500/40 bg-amber-500/5" },
+  retrying:          { label: "Retrying…",          dot: "bg-amber-500 animate-pulse",    tone: "border-amber-500/40 bg-amber-500/5" },
+  live:              { label: "Live",               dot: "bg-green-500",                  tone: "border-primary/40 bg-primary/5" },
+  failed:            { label: "Failed",             dot: "bg-red-500",                    tone: "border-red-500/40 bg-red-500/5" },
+};
+
+function UserStatusPanel({
+  stage,
+  detail,
+  heartbeat,
+}: {
+  stage: string | null;
+  detail: string | null;
+  heartbeat: string | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const meta = (stage && STAGE_META[stage]) || {
+    label: stage ?? "No report yet",
+    dot: "bg-muted-foreground/40",
+    tone: "border-border bg-muted/30",
+  };
+
+  const hbMs = heartbeat ? now - new Date(heartbeat).getTime() : null;
+  const hbSec = hbMs != null ? Math.max(0, Math.floor(hbMs / 1000)) : null;
+  const stale = hbSec != null && hbSec > 15;
+
+  return (
+    <div className={`w-full rounded-md border px-4 py-3 text-sm ${meta.tone}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${meta.dot}`} />
+        <span className="font-medium">User: {meta.label}</span>
+      </div>
+      {detail && (
+        <div className="mt-1 break-words text-xs text-muted-foreground">{detail}</div>
+      )}
+      <div className="mt-2 text-xs text-muted-foreground">
+        {hbSec == null ? (
+          <span>No heartbeat yet</span>
+        ) : (
+          <span>Last seen: {hbSec}s ago</span>
+        )}
+      </div>
+      {stale && (
+        <div className="mt-1 text-xs font-medium text-red-600">
+          User may have disconnected or closed the page.
         </div>
       )}
     </div>
