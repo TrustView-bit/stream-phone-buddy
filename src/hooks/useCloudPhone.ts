@@ -386,6 +386,22 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       if (video) {
         video.srcObject = newStream;
         try { await video.play(); } catch (e) { console.warn("[CloudPhone] video.play() after switch rejected", e); }
+        // Wait briefly for new camera dimensions, then resize canvas to match new aspect.
+        const waitNewDims = new Promise<void>((resolve) => {
+          const start = Date.now();
+          const check = () => {
+            if (video.videoWidth > 0 && video.videoHeight > 0) return resolve();
+            if (Date.now() - start > 2000) return resolve();
+            setTimeout(check, 50);
+          };
+          check();
+        });
+        await waitNewDims;
+        const canvas = drawCanvasRef.current;
+        if (canvas && video.videoWidth && video.videoHeight) {
+          console.log(`[CloudPhone] camera switched to ${target}, new dims ${video.videoWidth}×${video.videoHeight}`);
+          sizeCanvasToVideo(canvas, video.videoWidth, video.videoHeight);
+        }
       }
 
       currentFacingRef.current = target;
