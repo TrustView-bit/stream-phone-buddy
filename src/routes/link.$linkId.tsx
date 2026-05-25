@@ -111,7 +111,10 @@ function LinkPage() {
             setStatusSource("realtime");
           }
           if (typeof n?.user_view_hidden === "boolean") {
+            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
+          } else {
+            console.log("[LinkPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
