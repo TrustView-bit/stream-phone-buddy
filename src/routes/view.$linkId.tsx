@@ -36,7 +36,11 @@ function ViewPage() {
     status: "idle",
     userAgent: null,
     connectedAt: null,
+    userStage: null,
+    userDetail: null,
+    userHeartbeat: null,
   });
+
 
   useEffect(() => {
     let cancelled = false;
