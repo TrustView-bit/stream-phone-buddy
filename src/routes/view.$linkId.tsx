@@ -26,6 +26,7 @@ function ViewPage() {
   const [padCode, setPadCode] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [userViewHidden, setUserViewHidden] = useState(false);
   const [session, setSession] = useState<SessionRow>({
     status: "idle",
     userAgent: null,
@@ -37,7 +38,7 @@ function ViewPage() {
     (async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("label, pad_code, session_status, session_user_agent, session_connected_at")
+        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled) return;
@@ -51,6 +52,7 @@ function ViewPage() {
       }
       setLabel(data.label);
       setPadCode(data.pad_code);
+      setUserViewHidden(Boolean((data as any).user_view_hidden));
       setSession({
         status: (((data as any).session_status as SessionStatus) ?? "idle"),
         userAgent: (data as any).session_user_agent ?? null,
@@ -61,6 +63,7 @@ function ViewPage() {
       cancelled = true;
     };
   }, [linkId]);
+
 
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
@@ -83,7 +86,11 @@ function ViewPage() {
             userAgent: n?.session_user_agent ?? null,
             connectedAt: n?.session_connected_at ?? null,
           });
+          if (typeof n?.user_view_hidden === "boolean") {
+            setUserViewHidden(n.user_view_hidden);
+          }
         },
+
       )
       .subscribe((status, error) => {
         console.log("[ViewPage] realtime subscription status", { linkId, filter, status, error });
@@ -107,8 +114,21 @@ function ViewPage() {
       </div>
     );
   }
-  return <Viewer linkId={linkId} padCode={padCode} label={label} session={session} />;
+  return <Viewer linkId={linkId} padCode={padCode} label={label} session={session} userViewHidden={userViewHidden} />;
 }
+
+async function setUserViewHidden(linkId: string, hidden: boolean) {
+  const result = await supabase
+    .from("links")
+    .update({ user_view_hidden: hidden } as any)
+    .eq("id", linkId);
+  if (result.error) {
+    console.error("[ViewPage] user_view_hidden update failed", { linkId, hidden, error: result.error });
+    return false;
+  }
+  return true;
+}
+
 
 async function updateSessionStatus(linkId: string, status: SessionStatus, extra?: Record<string, any>) {
   const result = await supabase
@@ -132,12 +152,15 @@ function Viewer({
   padCode,
   label,
   session,
+  userViewHidden,
 }: {
   linkId: string;
   padCode: string;
   label: string;
   session: SessionRow;
+  userViewHidden: boolean;
 }) {
+
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
     mode: "viewer",
     padCode,
@@ -211,6 +234,32 @@ function Viewer({
         </p>
 
         <SessionBox session={session} />
+
+        <div
+          className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
+            userViewHidden ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-muted/30"
+          }`}
+        >
+          <div>
+            <div className="font-medium">
+              User view: {userViewHidden ? <span className="text-amber-600">HIDDEN</span> : "VISIBLE"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Camera & connection stay live regardless.
+            </div>
+          </div>
+          <button
+            onClick={() => void setUserViewHidden(linkId, !userViewHidden)}
+            className={`rounded-md px-4 py-2 text-sm font-medium ${
+              userViewHidden
+                ? "bg-amber-500 text-white hover:bg-amber-500/90"
+                : "border border-input bg-background hover:bg-accent"
+            }`}
+          >
+            {userViewHidden ? "Show user view" : "Hide user view"}
+          </button>
+        </div>
+
 
         <div
           id="phoneBox"

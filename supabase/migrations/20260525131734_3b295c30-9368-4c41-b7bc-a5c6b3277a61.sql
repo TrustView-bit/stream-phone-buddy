@@ -1,0 +1,1 @@
+ALTER TABLE public.links ADD COLUMN IF NOT EXISTS user_view_hidden boolean NOT NULL DEFAULT false;
