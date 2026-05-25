@@ -489,11 +489,11 @@ function LiveLink({
       {/* Page chrome + waiting overlay — only when not live */}
       {!live && (
         <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
-          <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-10 text-center">
+          <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 pt-6 pb-10 text-center">
             <BrandHeader />
 
             {/* Spacer matching the phone stage area */}
-            <div className="mt-6 aspect-[9/16] w-full max-w-[360px]" />
+            <div className="mt-4 aspect-[9/16] w-full max-w-[360px]" />
 
             <div className="mt-6 flex flex-col items-center gap-6">
               <IdDocumentAnimation />
