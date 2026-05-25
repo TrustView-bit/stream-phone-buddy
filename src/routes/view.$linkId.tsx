@@ -327,7 +327,7 @@ function Viewer({
                 : "border border-input bg-background hover:bg-accent"
             }`}
           >
-            {userViewHidden ? "Show user view" : "Hide user view"}
+            {userViewHidden ? "Reveal user view" : "Hide user view"}
           </button>
         </div>
 
