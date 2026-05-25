@@ -73,6 +73,7 @@ const NEW_DEFAULTS = (id: string): LinkRow => ({
   front_definition_id: 15,
   front_framerate_id: 8,
   front_bitrate_id: 8,
+  session_status: "idle",
 });
 
 function randomSlug() {
