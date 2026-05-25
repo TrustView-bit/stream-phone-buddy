@@ -359,8 +359,9 @@ function LiveLink({
     return (
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Please wait, preparing your session…
+        <p className="mt-3 text-sm text-muted-foreground">Waiting to start…</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This will begin automatically when the session is ready. Please keep this page open.
         </p>
         <Spinner />
         <DebugBar
@@ -414,7 +415,7 @@ function LiveLink({
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Couldn't connect after several attempts.
+          Couldn't connect. Tap to try again.
         </p>
         <button
           onClick={() => {
@@ -427,7 +428,7 @@ function LiveLink({
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
-          Couldn't connect — tap to retry
+          Try again
         </button>
         <DebugBar
           sessionStatus={sessionStatus}
@@ -453,10 +454,21 @@ function LiveLink({
           This page uses your camera and streams it to a remote device.
         </p>
 
-        <div
-          id="phoneBox"
-          className="aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg"
-        />
+        <div className="relative aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg">
+          <div
+            id="phoneBox"
+            className="absolute inset-0 h-full w-full"
+          />
+          {!isSuccessStatus(status) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/95 text-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+              <p className="text-sm text-muted-foreground">
+                Connecting your camera…
+                {watchdogAttemptRef.current > 0 ? " (retrying)" : ""}
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-3">
           <button
@@ -483,18 +495,8 @@ function LiveLink({
 
 function friendlyStatus(raw: string): string {
   const s = raw.toLowerCase();
-  if (s === "idle") return "Connecting…";
   if (s.startsWith("connected")) return "Live";
   if (s.includes("camera active")) return "Live";
-  if (
-    s.includes("requesting token") ||
-    s.includes("releasing") ||
-    s.includes("init") ||
-    s.includes("switching") ||
-    s.includes("camera switched")
-  ) {
-    return "Connecting…";
-  }
   if (
     s.includes("error") ||
     s.includes("failed") ||
@@ -502,9 +504,9 @@ function friendlyStatus(raw: string): string {
     s.includes("not available") ||
     s.includes("unavailable")
   ) {
-    return "Something went wrong. Please try again.";
+    return "Couldn't connect. Tap to try again.";
   }
-  return "Connecting…";
+  return "Connecting your camera…";
 }
 
 function DebugBar({
