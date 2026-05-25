@@ -47,6 +47,7 @@ function LinkPage() {
   const [userViewHidden, setUserViewHidden] = useState(false);
   const [, setStatusSource] = useState<StatusSource>("init");
   const [, setRtStatus] = useState<string>("connecting");
+  const [finished, setFinished] = useState(false);
 
 
   useEffect(() => {
