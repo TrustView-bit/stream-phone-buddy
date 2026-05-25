@@ -55,7 +55,7 @@ function LinkPage() {
       const { data, error } = await supabase
         .from("links")
         .select(
-          "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status",
+          "label, pad_code, camera_mode, back_definition_id, back_framerate_id, back_bitrate_id, front_definition_id, front_framerate_id, front_bitrate_id, session_status, user_view_hidden",
         )
         .eq("id", linkId)
         .maybeSingle();
@@ -83,10 +83,13 @@ function LinkPage() {
           bitrateId: data.front_bitrate_id ?? 8,
         },
         session_status: ((data as any).session_status as SessionStatus) ?? "idle",
+        user_view_hidden: Boolean((data as any).user_view_hidden),
       };
       setLoad({ kind: "ready", config: cfg });
       setSessionStatus(cfg.session_status);
+      setUserViewHidden(cfg.user_view_hidden);
       setStatusSource("init");
+
     })();
     return () => {
       cancelled = true;
