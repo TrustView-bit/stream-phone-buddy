@@ -292,6 +292,27 @@ function Viewer({
 
   };
 
+  const onFinish = async () => {
+    if (!window.confirm("End the session for this user?")) return;
+    // 1) Flip status to 'finished' so the user page tears down + shows thank-you
+    await updateSessionStatus(linkId, "finished");
+    // 2) Tear down admin viewer fully
+    stop();
+    setConnected(false);
+    autoReconnectRef.current = false;
+    liveMarkedRef.current = false;
+    // 3) Give the user page a moment to receive 'finished', then free the phone
+    setTimeout(() => {
+      void updateSessionStatus(linkId, "idle", {
+        session_user_agent: null,
+        session_connected_at: null,
+        user_stage: null,
+        user_detail: null,
+        user_heartbeat: null,
+      });
+    }, 1500);
+  };
+
 
   // When the user starts injecting, auto-reconnect admin in viewer mode
   useEffect(() => {
