@@ -257,6 +257,7 @@ function Viewer({
   session,
   userViewHidden,
   onToggleHidden,
+  broadcastFinish,
 }: {
   linkId: string;
   padCode: string;
@@ -264,6 +265,7 @@ function Viewer({
   session: SessionRow;
   userViewHidden: boolean;
   onToggleHidden: (hidden: boolean) => Promise<boolean>;
+  broadcastFinish: () => void;
 }) {
 
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
