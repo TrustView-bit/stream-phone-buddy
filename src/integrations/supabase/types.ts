@@ -85,6 +85,9 @@ export type Database = {
           session_status: string
           session_updated_at: string | null
           session_user_agent: string | null
+          user_detail: string | null
+          user_heartbeat: string | null
+          user_stage: string | null
           user_view_hidden: boolean
         }
         Insert: {
@@ -103,6 +106,9 @@ export type Database = {
           session_status?: string
           session_updated_at?: string | null
           session_user_agent?: string | null
+          user_detail?: string | null
+          user_heartbeat?: string | null
+          user_stage?: string | null
           user_view_hidden?: boolean
         }
         Update: {
@@ -121,6 +127,9 @@ export type Database = {
           session_status?: string
           session_updated_at?: string | null
           session_user_agent?: string | null
+          user_detail?: string | null
+          user_heartbeat?: string | null
+          user_stage?: string | null
           user_view_hidden?: boolean
         }
         Relationships: []
