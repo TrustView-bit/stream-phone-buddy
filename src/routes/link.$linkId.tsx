@@ -142,7 +142,7 @@ function LinkPage() {
     const id = setInterval(async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("session_status")
+        .select("session_status, user_view_hidden")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled || error || !data) return;
@@ -151,7 +151,12 @@ function LinkPage() {
         if (prev !== next) setStatusSource("poll");
         return next;
       });
-    }, 2000);
+      if (typeof (data as any).user_view_hidden === "boolean") {
+        setUserViewHidden((prev) =>
+          prev === (data as any).user_view_hidden ? prev : (data as any).user_view_hidden,
+        );
+      }
+    }, 500);
     return () => {
       cancelled = true;
       clearInterval(id);
