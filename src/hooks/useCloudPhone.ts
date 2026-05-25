@@ -353,21 +353,37 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       // Back = sharp/static detail; Front = smoother for people/movement.
       const profile = target === "front" ? frontQualityRef.current : backQualityRef.current;
       try {
-        await (engineRef.current as any)?.setStreamConfig?.(profile);
+        await Promise.resolve((engineRef.current as any)?.setStreamConfig?.(profile)).catch((e) => {
+          const msg = String((e as any)?.message ?? e ?? "");
+          if (/has already capture/i.test(msg)) {
+            console.warn("[CloudPhone] setStreamConfig: capture already active (ignored)");
+            return;
+          }
+          console.warn("[CloudPhone] setStreamConfig on switch failed", e);
+        });
         console.log("[CloudPhone] setStreamConfig applied for", target, profile);
       } catch (e) {
-        console.warn("[CloudPhone] setStreamConfig on switch failed", e);
+        console.warn("[CloudPhone] setStreamConfig on switch threw", e);
       }
       setStatus(`Camera switched: ${target}`);
     } catch (e) {
-      console.warn("[CloudPhone] switchToCamera error", e);
+      const msg = String((e as any)?.message ?? e ?? "");
+      if (/has already capture/i.test(msg)) {
+        console.warn("[CloudPhone] switchToCamera: 'Has already capture' swallowed");
+      } else {
+        console.warn("[CloudPhone] switchToCamera error", e);
+      }
     } finally {
       switchInProgressRef.current = false;
       const pending = pendingSwitchRef.current;
       pendingSwitchRef.current = null;
       if (pending && pending !== currentFacingRef.current) {
         // Process queued request
-        setTimeout(() => { void switchToCamera(pending); }, 0);
+        setTimeout(() => {
+          void switchToCamera(pending).catch((e) => {
+            console.warn("[CloudPhone] queued switchToCamera swallowed", e);
+          });
+        }, 0);
       }
     }
   };
@@ -733,7 +749,17 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           if (cameraModeRef.current !== "dynamic") return;
           if (stats?.enabled !== true) return;
           const target: Facing = stats?.isFront ? "front" : "back";
-          void switchToCamera(target);
+          // Ignore redundant toggles: same facing + capture already live.
+          const liveTrack = rawCameraRef.current?.getVideoTracks()[0];
+          if (
+            currentFacingRef.current === target &&
+            liveTrack?.readyState === "live"
+          ) {
+            return;
+          }
+          void switchToCamera(target).catch((e) => {
+            console.warn("[CloudPhone] switchToCamera (toggle) swallowed", e);
+          });
         },
         onAutoRecoveryTime: () => {
           console.log("[CloudPhone] onAutoRecoveryTime → engine.start()");
