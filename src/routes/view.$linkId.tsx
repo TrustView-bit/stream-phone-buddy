@@ -14,7 +14,7 @@ export const Route = createFileRoute("/view/$linkId")({
   component: ViewPage,
 });
 
-type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live" | "finished";
 
 interface SessionRow {
   status: SessionStatus;
