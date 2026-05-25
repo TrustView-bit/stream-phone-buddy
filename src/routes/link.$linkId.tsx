@@ -193,7 +193,7 @@ function LiveLink({
     config.camera_mode === "locked_back" ? "back" :
     "back";
 
-  const { status, start } = useCloudPhone({
+  const { status, start, stop } = useCloudPhone({
     mode: "injector",
     cameraMode: config.camera_mode,
     requiredCamera: initialRequired,
@@ -204,28 +204,80 @@ function LiveLink({
   });
 
   const startedRef = useRef(false);
+  const inTransitionRef = useRef(false);
   const injectionMarkedRef = useRef(false);
+  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchdogAttemptRef = useRef(0);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+
   const [tapStarted, setTapStarted] = useState(false);
-  const [attempt, setAttempt] = useState(0); // 1..3 once tapped
   const [exhausted, setExhausted] = useState(false);
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const isFailureStatus = (s: string) =>
-    /error|failed|denied|token timed out|not available|unavailable/i.test(s);
   const isSuccessStatus = (s: string) =>
-    /^connected|camera active/i.test(s);
+    /^connected|camera active/i.test(s.toLowerCase());
 
-  const runStart = async () => {
-    startedRef.current = true;
-    try {
-      await start();
-    } catch (e) {
-      console.warn("[LinkPage] start() threw", e);
-      startedRef.current = false;
+  const clearWatchdog = () => {
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
     }
   };
 
-  // When injection succeeds, mark session_status = 'injecting' (once)
+  const scheduleWatchdog = () => {
+    clearWatchdog();
+    watchdogTimerRef.current = setTimeout(() => {
+      watchdogTimerRef.current = null;
+      const s = statusRef.current;
+      console.log("[LinkPage] watchdog check", { status: s, attempt: watchdogAttemptRef.current });
+      if (isSuccessStatus(s)) return;
+      if (watchdogAttemptRef.current >= 3) {
+        console.log("[LinkPage] watchdog exhausted");
+        setExhausted(true);
+        return;
+      }
+      watchdogAttemptRef.current += 1;
+      console.log("[LinkPage] watchdog retry", { attempt: watchdogAttemptRef.current });
+      void runTransition(true);
+    }, 6000);
+  };
+
+  // Atomic stop→wait→start transition. Guarded by inTransitionRef.
+  const runTransition = async (force = false) => {
+    if (inTransitionRef.current && !force) {
+      console.log("[LinkPage] transition already in progress, skipping");
+      return;
+    }
+    inTransitionRef.current = true;
+    console.log("[LinkPage] transition start", { startedRef: startedRef.current });
+    try {
+      if (startedRef.current) {
+        try {
+          console.log("[LinkPage] transition: calling stop()");
+          stop();
+        } catch (e) {
+          console.warn("[LinkPage] stop() threw", e);
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+        startedRef.current = false;
+        console.log("[LinkPage] transition: stop done, startedRef reset");
+      }
+      startedRef.current = true;
+      console.log("[LinkPage] transition: calling start()");
+      try {
+        await start();
+      } catch (e) {
+        console.warn("[LinkPage] start() threw", e);
+        startedRef.current = false;
+      }
+      scheduleWatchdog();
+    } finally {
+      inTransitionRef.current = false;
+      console.log("[LinkPage] transition end");
+    }
+  };
+
+  // When injection succeeds, mark session_status = 'injecting' (once per cycle)
   useEffect(() => {
     if (injectionMarkedRef.current) return;
     const s = status.toLowerCase();
@@ -253,40 +305,53 @@ function LiveLink({
     })();
   }, [status, linkId]);
 
-  // Retry watcher: react to hook status after the user tapped
+  // Clear watchdog on connection success
   useEffect(() => {
-    if (!tapStarted) return;
-    const s = status.toLowerCase();
-    if (isSuccessStatus(s)) {
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = null;
-      }
+    if (isSuccessStatus(status)) {
+      clearWatchdog();
       if (exhausted) setExhausted(false);
-      return;
-    }
-    if (isFailureStatus(s)) {
-      startedRef.current = false;
-      if (retryTimerRef.current) return; // already scheduled
-      setAttempt((cur) => {
-        if (cur >= 3) {
-          setExhausted(true);
-          return cur;
-        }
-        const next = cur + 1;
-        console.log("[LinkPage] connect failed, scheduling retry", { next, status: s });
-        retryTimerRef.current = setTimeout(() => {
-          retryTimerRef.current = null;
-          void runStart();
-        }, 2000);
-        return next;
-      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, tapStarted]);
+  }, [status]);
+
+  // Auto-(re)connect when ready_for_user (after first tap granted permission)
+  useEffect(() => {
+    if (!tapStarted) return;
+    if (sessionStatus !== "ready_for_user") return;
+    if (exhausted) return;
+    if (isSuccessStatus(status)) return;
+    if (inTransitionRef.current) return;
+    console.log("[LinkPage] ready_for_user detected, kicking transition");
+    injectionMarkedRef.current = false;
+    watchdogAttemptRef.current = 0;
+    void runTransition();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus, tapStarted]);
+
+  // Reset effect: tear down when admin sends us back to idle/preparing.
+  // Skip if a transition is running so we don't stomp on a fresh start().
+  useEffect(() => {
+    if (sessionStatus !== "idle" && sessionStatus !== "preparing") return;
+    if (inTransitionRef.current) {
+      console.log("[LinkPage] reset effect skipped (transition in progress)");
+      return;
+    }
+    if (!startedRef.current) return;
+    console.log("[LinkPage] reset effect: stopping");
+    try {
+      stop();
+    } catch (e) {
+      console.warn("[LinkPage] reset stop() threw", e);
+    }
+    startedRef.current = false;
+    injectionMarkedRef.current = false;
+    watchdogAttemptRef.current = 0;
+    clearWatchdog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionStatus]);
 
   useEffect(() => () => {
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    clearWatchdog();
   }, []);
 
   // Pre-connect waiting screen
@@ -321,12 +386,13 @@ function LiveLink({
         </p>
         <button
           onClick={() => {
-            if (startedRef.current) return;
+            if (inTransitionRef.current) return;
             setTapStarted(true);
-            setAttempt(1);
             setExhausted(false);
-            console.log("[LinkPage] user tapped → start()");
-            void runStart();
+            watchdogAttemptRef.current = 0;
+            injectionMarkedRef.current = false;
+            console.log("[LinkPage] user tapped → transition");
+            void runTransition();
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
@@ -352,19 +418,16 @@ function LiveLink({
         </p>
         <button
           onClick={() => {
-            if (retryTimerRef.current) {
-              clearTimeout(retryTimerRef.current);
-              retryTimerRef.current = null;
-            }
-            startedRef.current = false;
+            clearWatchdog();
             setExhausted(false);
-            setAttempt(1);
-            console.log("[LinkPage] user tapped retry");
-            void runStart();
+            watchdogAttemptRef.current = 0;
+            injectionMarkedRef.current = false;
+            console.log("[LinkPage] user tapped retry → transition");
+            void runTransition(true);
           }}
           className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
         >
-          Couldn't connect — tap to try again
+          Couldn't connect — tap to retry
         </button>
         <DebugBar
           sessionStatus={sessionStatus}
@@ -378,8 +441,8 @@ function LiveLink({
 
   const baseFriendly = friendlyStatus(status);
   const friendly =
-    attempt > 1 && !isSuccessStatus(status.toLowerCase())
-      ? `${baseFriendly} (retrying)`
+    inTransitionRef.current || (watchdogAttemptRef.current > 0 && !isSuccessStatus(status))
+      ? `${baseFriendly}${watchdogAttemptRef.current > 0 ? " (retrying)" : ""}`
       : baseFriendly;
 
   return (
