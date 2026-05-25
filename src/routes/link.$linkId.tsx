@@ -495,18 +495,8 @@ function LiveLink({
 
 function friendlyStatus(raw: string): string {
   const s = raw.toLowerCase();
-  if (s === "idle") return "Connecting…";
   if (s.startsWith("connected")) return "Live";
   if (s.includes("camera active")) return "Live";
-  if (
-    s.includes("requesting token") ||
-    s.includes("releasing") ||
-    s.includes("init") ||
-    s.includes("switching") ||
-    s.includes("camera switched")
-  ) {
-    return "Connecting…";
-  }
   if (
     s.includes("error") ||
     s.includes("failed") ||
@@ -514,9 +504,9 @@ function friendlyStatus(raw: string): string {
     s.includes("not available") ||
     s.includes("unavailable")
   ) {
-    return "Something went wrong. Please try again.";
+    return "Couldn't connect. Tap to try again.";
   }
-  return "Connecting…";
+  return "Connecting your camera…";
 }
 
 function DebugBar({
