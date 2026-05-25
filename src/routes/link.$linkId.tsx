@@ -474,7 +474,7 @@ function LiveLink({
         className={
           live
             ? "fixed inset-0 z-50 bg-black transition-all duration-300"
-            : "fixed left-1/2 top-[180px] z-30 aspect-[9/16] w-[min(360px,calc(100vw-48px))] -translate-x-1/2 overflow-hidden rounded-2xl bg-transparent transition-all duration-300"
+            : "fixed left-1/2 top-[120px] z-30 aspect-[9/16] w-[min(360px,calc(100vw-48px))] -translate-x-1/2 overflow-hidden rounded-2xl bg-transparent transition-all duration-300"
         }
       >
         <div id="phoneBox" className="absolute inset-0 h-full w-full" />
