@@ -366,6 +366,12 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
+  const live = isSuccessStatus(status);
+
+  useEffect(() => {
+    console.log("[link] status:", status, "live:", live);
+  }, [status, live]);
+
   // ===== Initial Start screen =====
   if (!tapStarted) {
     return (
@@ -421,11 +427,7 @@ function LiveLink({
   // ===== Connecting + Live screen =====
   // IMPORTANT: keep #phoneBox mounted at the same DOM node across states,
   // otherwise the SDK attaches video to a node we later unmount.
-  const live = isSuccessStatus(status);
 
-  useEffect(() => {
-    console.log("[link] status:", status, "live:", live);
-  }, [status, live]);
 
   return (
     <>
