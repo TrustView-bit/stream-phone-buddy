@@ -2,7 +2,9 @@
 // SSR worker (built to dist/server/index.js) into Vercel's request/response model.
 import handler from "../dist/server/index.js";
 
-export const config = { runtime: "nodejs20.x" };
+// Vercel auto-detects this as a Node.js serverless function — do not add
+// `export const config = { runtime: ... }` (causes "Function Runtimes must
+// have a valid version") and do not add a `functions` block in vercel.json.
 
 function buildRequest(req) {
   const proto = req.headers["x-forwarded-proto"] || "https";
