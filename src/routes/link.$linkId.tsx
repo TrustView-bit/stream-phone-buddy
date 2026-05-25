@@ -104,12 +104,17 @@ function LinkPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "links", filter },
         (payload) => {
-          const next = (payload.new as any)?.session_status as SessionStatus | undefined;
+          const n = payload.new as any;
+          const next = n?.session_status as SessionStatus | undefined;
           if (next) {
             setSessionStatus(next);
             setStatusSource("realtime");
           }
+          if (typeof n?.user_view_hidden === "boolean") {
+            setUserViewHidden(n.user_view_hidden);
+          }
         },
+
       )
       .subscribe((status) => {
         setRtStatus(String(status).toLowerCase());
