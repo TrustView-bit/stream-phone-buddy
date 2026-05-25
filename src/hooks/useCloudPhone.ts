@@ -133,12 +133,20 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   // single in-flight recovery timer that grants the SDK ~20s to self-heal.
   const hasConnectedRef = useRef(false);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const RECOVERY_WINDOW_MS = 20000;
+  const recoveryRetryIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recoveryAttemptRef = useRef(0);
+  const RECOVERY_WINDOW_MS = 30000;
+  const RECOVERY_RETRY_MS = 4000;
   const clearRecoveryTimer = () => {
     if (recoveryTimerRef.current) {
       clearTimeout(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
     }
+    if (recoveryRetryIntervalRef.current) {
+      clearInterval(recoveryRetryIntervalRef.current);
+      recoveryRetryIntervalRef.current = null;
+    }
+    recoveryAttemptRef.current = 0;
   };
   const beginRecoveryWindow = (reason: string) => {
     if (recoveryTimerRef.current) {
@@ -147,7 +155,21 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     }
     console.log("[CloudPhone] entering recovery window", { reason });
     setStatus("Connection lost — reconnecting…");
+    recoveryAttemptRef.current = 0;
+    recoveryRetryIntervalRef.current = setInterval(() => {
+      recoveryAttemptRef.current += 1;
+      console.log(`[CloudPhone] active recovery attempt ${recoveryAttemptRef.current}`);
+      try {
+        engineRef.current?.start();
+      } catch (e) {
+        console.warn("[CloudPhone] active recovery start() threw", e);
+      }
+    }, RECOVERY_RETRY_MS);
     recoveryTimerRef.current = setTimeout(() => {
+      if (recoveryRetryIntervalRef.current) {
+        clearInterval(recoveryRetryIntervalRef.current);
+        recoveryRetryIntervalRef.current = null;
+      }
       recoveryTimerRef.current = null;
       console.warn("[CloudPhone] recovery window exhausted, stopping");
       setStatus("Connection lost.");
