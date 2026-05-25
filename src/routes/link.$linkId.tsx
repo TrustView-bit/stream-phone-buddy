@@ -111,10 +111,8 @@ function LinkPage() {
             setStatusSource("realtime");
           }
           if (typeof n?.user_view_hidden === "boolean") {
-            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
+            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via postgres_changes`, { linkId });
             setUserViewHidden(n.user_view_hidden);
-          } else {
-            console.log("[LinkPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
@@ -122,8 +120,20 @@ function LinkPage() {
       .subscribe((status) => {
         setRtStatus(String(status).toLowerCase());
       });
+
+    // Instant curtain broadcast channel — faster than postgres_changes
+    const curtain = supabase
+      .channel(`curtain-${linkId}`)
+      .on("broadcast", { event: "set_hidden" }, (msg) => {
+        const hidden = Boolean((msg.payload as any)?.hidden);
+        console.log(`[LinkPage] received broadcast set_hidden = ${hidden}`, { linkId });
+        setUserViewHidden(hidden);
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(curtain);
     };
   }, [linkId]);
 
