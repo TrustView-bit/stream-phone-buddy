@@ -566,7 +566,7 @@ function LiveLink({
 
       {/* Admin-controlled curtain — covers user's view while connection & camera stay live */}
       {userViewHidden && (
-        <div className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-gradient-to-b from-background to-muted/30 px-6 text-center text-foreground">
+        <div className="fixed inset-0 z-[100] flex h-screen w-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center text-foreground" style={{ opacity: 1 }}>
           <BrandHeader />
           <div className="flex flex-col items-center gap-4">
             <span className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
