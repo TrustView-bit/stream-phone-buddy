@@ -398,8 +398,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         await waitNewDims;
         const canvas = drawCanvasRef.current;
         if (canvas && video.videoWidth && video.videoHeight) {
-          console.log(`[CloudPhone] camera switched to ${target}, new dims ${video.videoWidth}×${video.videoHeight}`);
-          sizeCanvasToVideo(canvas, video.videoWidth, video.videoHeight);
+          console.log(`[CloudPhone] camera switched to ${target}, user-cam dims ${video.videoWidth}×${video.videoHeight} → cover-fill into ${CANVAS_W}×${CANVAS_H}`);
+          ensureCanvasSize(canvas);
         }
       }
 
