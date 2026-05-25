@@ -94,11 +94,16 @@ function ViewPage() {
             newStatus: n?.session_status,
             payload,
           });
-          setSession({
+          setSession((prev) => ({
+            ...prev,
             status: (n?.session_status as SessionStatus) ?? "idle",
             userAgent: n?.session_user_agent ?? null,
             connectedAt: n?.session_connected_at ?? null,
-          });
+            userStage: n?.user_stage ?? null,
+            userDetail: n?.user_detail ?? null,
+            userHeartbeat: n?.user_heartbeat ?? null,
+          }));
+
           if (typeof n?.user_view_hidden === "boolean") {
             console.log(`[ViewPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
