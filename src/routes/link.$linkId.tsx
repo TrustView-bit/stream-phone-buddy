@@ -252,15 +252,21 @@ function LiveLink({
   // ---- User state reporting (observability for admin Control Center) ----
   const lastStageRef = useRef<string | null>(null);
   const lastDetailRef = useRef<string | null>(null);
-  const reportStage = (stage: string, detail: string | null = null) => {
+  const reportStage = async (stage: string, detail: string | null = null) => {
     if (lastStageRef.current === stage && lastDetailRef.current === detail) return;
     lastStageRef.current = stage;
     lastDetailRef.current = detail;
-    void supabase
+    const { error } = await supabase
       .from("links")
       .update({ user_stage: stage, user_detail: detail } as any)
       .eq("id", linkId);
+    if (error) {
+      console.error("[LinkPage] reportStage write failed", { stage, detail, error });
+    } else {
+      console.log("[LinkPage] reportStage wrote", { stage, detail });
+    }
   };
+
 
 
   // Rotating tips during loading
