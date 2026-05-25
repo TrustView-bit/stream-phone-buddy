@@ -213,6 +213,58 @@ function LiveLink({
 
   const [tapStarted, setTapStarted] = useState(false);
   const [exhausted, setExhausted] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const primingStreamRef = useRef<MediaStream | null>(null);
+
+  const releasePrimingStream = () => {
+    const s = primingStreamRef.current;
+    if (s) {
+      try {
+        s.getTracks().forEach((t) => t.stop());
+      } catch (e) {
+        console.warn("[LinkPage] releasePrimingStream threw", e);
+      }
+      primingStreamRef.current = null;
+      console.log("[LinkPage] released priming camera stream");
+    }
+  };
+
+  const handleStartTap = async () => {
+    // CRITICAL: acquire camera FIRST in the user gesture, before any awaited
+    // network call — keeps the gesture valid on iOS Safari / Firefox.
+    setPermissionError(null);
+    let stream: MediaStream | null = null;
+    try {
+      const initialFacing =
+        config.camera_mode === "locked_front" ? "user" :
+        config.camera_mode === "locked_back" ? "environment" :
+        "environment";
+      // Try ideal facingMode first (works on all browsers — exact fails on Firefox).
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: initialFacing } },
+          audio: false,
+        });
+      } catch (e) {
+        console.warn("[LinkPage] facingMode acquire failed, fallback to plain", e);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+    } catch (e: any) {
+      console.warn("[LinkPage] camera permission/acquire failed on Start tap", e);
+      setPermissionError(
+        e?.name === "NotAllowedError"
+          ? "Camera access is needed to continue. Tap to try again."
+          : "Couldn't access the camera. Tap to try again.",
+      );
+      return;
+    }
+    primingStreamRef.current = stream;
+    console.log("[LinkPage] Start tap: camera acquired and held");
+    setTapStarted(true);
+    setExhausted(false);
+    watchdogAttemptRef.current = 0;
+    injectionMarkedRef.current = false;
+  };
 
   const isSuccessStatus = (s: string) =>
     /^connected|camera active/i.test(s.toLowerCase());
@@ -324,6 +376,9 @@ function LiveLink({
     console.log("[LinkPage] ready_for_user detected, kicking transition");
     injectionMarkedRef.current = false;
     watchdogAttemptRef.current = 0;
+    // Release the gesture-held priming stream so the hook can reacquire the
+    // camera without a NotReadableError. Permission persists for the page.
+    releasePrimingStream();
     void runTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus, tapStarted]);
@@ -352,16 +407,45 @@ function LiveLink({
 
   useEffect(() => () => {
     clearWatchdog();
+    releasePrimingStream();
   }, []);
 
-  // Pre-connect waiting screen
+  // Initial Start screen — always shown first, regardless of session_status,
+  // so camera permission is acquired inside a single explicit user gesture.
+  if (!tapStarted) {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          You're about to share your camera with a remote device.
+        </p>
+        {permissionError && (
+          <p className="mt-4 text-sm text-destructive">{permissionError}</p>
+        )}
+        <button
+          onClick={() => { void handleStartTap(); }}
+          className="mt-8 rounded-md bg-primary px-10 py-4 text-lg font-medium text-primary-foreground"
+        >
+          {permissionError ? "Try again" : "Start"}
+        </button>
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
+      </CenteredShell>
+    );
+  }
+
+  // Pre-connect waiting screen (after Start tapped, before session is ready)
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
     return (
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Waiting to start…</p>
+        <p className="mt-3 text-sm text-muted-foreground">Waiting for the session to start…</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          This will begin automatically when the session is ready. Please keep this page open.
+          Keep this page open. It will connect automatically when the session is ready.
         </p>
         <Spinner />
         <DebugBar
@@ -374,40 +458,8 @@ function LiveLink({
     );
   }
 
-  // Tap-to-start screen (required user gesture for camera permission)
-  if (sessionStatus === "ready_for_user" && !tapStarted) {
-    return (
-      <CenteredShell>
-        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Your session is ready.
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          This will use your camera and stream it to a remote device.
-        </p>
-        <button
-          onClick={() => {
-            if (inTransitionRef.current) return;
-            setTapStarted(true);
-            setExhausted(false);
-            watchdogAttemptRef.current = 0;
-            injectionMarkedRef.current = false;
-            console.log("[LinkPage] user tapped → transition");
-            void runTransition();
-          }}
-          className="mt-6 rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground"
-        >
-          Tap to start your camera
-        </button>
-        <DebugBar
-          sessionStatus={sessionStatus}
-          rtStatus={rtStatus}
-          statusSource={statusSource}
-          hookStatus={status}
-        />
-      </CenteredShell>
-    );
-  }
+
+
 
   // Exhausted retry screen
   if (exhausted) {
