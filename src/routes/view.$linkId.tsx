@@ -122,6 +122,21 @@ function ViewPage() {
 
 async function setUserViewHidden(linkId: string, hidden: boolean) {
   console.log(`[ViewPage] writing user_view_hidden = ${hidden}`, { linkId });
+  // Broadcast first for instant user-side update (avoids DB CDC latency)
+  try {
+    const ch = supabase.channel(`curtain-${linkId}`);
+    await new Promise<void>((resolve) => {
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+      });
+      setTimeout(() => resolve(), 500);
+    });
+    await ch.send({ type: "broadcast", event: "set_hidden", payload: { hidden } });
+    console.log(`[ViewPage] broadcast sent set_hidden=${hidden}`, { linkId });
+    setTimeout(() => { supabase.removeChannel(ch); }, 1000);
+  } catch (e) {
+    console.error("[ViewPage] broadcast failed", e);
+  }
   const result = await supabase
     .from("links")
     .update({ user_view_hidden: hidden } as any)
