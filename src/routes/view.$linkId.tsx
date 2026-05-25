@@ -226,6 +226,7 @@ function ViewPage() {
       session={session}
       userViewHidden={userViewHidden}
       onToggleHidden={setHidden}
+      broadcastFinish={broadcastFinish}
     />
   );
 }
