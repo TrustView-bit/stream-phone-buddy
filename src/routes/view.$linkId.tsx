@@ -467,6 +467,13 @@ function Viewer({
                 >
                   Reset session
                 </button>
+                <button
+                  onClick={() => void onFinish()}
+                  className="ml-auto rounded-md bg-destructive px-6 py-2 text-sm font-semibold text-destructive-foreground shadow hover:bg-destructive/90"
+                  title="Fully end the session and release the phone"
+                >
+                  Finish session
+                </button>
                 <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm">
                   Tap to play
                 </button>
