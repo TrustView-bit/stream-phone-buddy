@@ -463,17 +463,20 @@ function LiveLink({
         #phoneBox video, #phoneBox canvas {
           width: 100% !important;
           height: 100% !important;
-          object-fit: contain;
           display: block;
           background: #000;
         }
+        /* Small box keeps contain so the whole video is visible */
+        #phoneBox video, #phoneBox canvas { object-fit: contain; }
+        /* Fullscreen fills screen edge-to-edge */
+        .fullscreen-phone #phoneBox video, .fullscreen-phone #phoneBox canvas { object-fit: cover; }
       `}</style>
 
       {/* Always-mounted phone stage — class toggles between inline aspect box and fullscreen */}
       <div
         className={
           live
-            ? "fixed inset-0 z-50 bg-black transition-all duration-300"
+            ? "fullscreen-phone fixed inset-0 z-50 bg-black transition-all duration-300"
             : "fixed left-1/2 top-[120px] z-30 aspect-[9/16] w-[min(360px,calc(100vw-48px))] -translate-x-1/2 overflow-hidden rounded-2xl bg-transparent transition-all duration-300"
         }
       >
