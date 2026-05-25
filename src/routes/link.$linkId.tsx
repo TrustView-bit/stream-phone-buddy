@@ -376,6 +376,9 @@ function LiveLink({
     console.log("[LinkPage] ready_for_user detected, kicking transition");
     injectionMarkedRef.current = false;
     watchdogAttemptRef.current = 0;
+    // Release the gesture-held priming stream so the hook can reacquire the
+    // camera without a NotReadableError. Permission persists for the page.
+    releasePrimingStream();
     void runTransition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionStatus, tapStarted]);
