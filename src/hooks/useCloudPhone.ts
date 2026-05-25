@@ -524,12 +524,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       await waitForData;
       console.log(`[CloudPhone] video ready: ${video.videoWidth}×${video.videoHeight} rs=${video.readyState}`);
 
-      const CANVAS_W = 1080;
-      const CANVAS_H = 1920;
-
       const canvas = document.createElement("canvas");
-      canvas.width = CANVAS_W;
-      canvas.height = CANVAS_H;
+      sizeCanvasToVideo(canvas, video.videoWidth || 1280, video.videoHeight || 720);
       canvas.style.position = "fixed";
       canvas.style.left = "-10000px";
       canvas.style.top = "0";
@@ -540,11 +536,13 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       canvas.style.pointerEvents = "none";
       canvas.style.zIndex = "9999";
       document.body.appendChild(canvas);
+      drawCanvasRef.current = canvas;
       (window as any).__cloudPhoneDrawCanvas = canvas;
       const ctx = canvas.getContext("2d")!;
 
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      console.log(`[CloudPhone] initial canvas ${canvas.width}×${canvas.height} for camera ${video.videoWidth}×${video.videoHeight}`);
 
       const draw = () => {
         const v = hiddenVideoRef.current;
@@ -554,6 +552,14 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         }
         const sw = v.videoWidth;
         const sh = v.videoHeight;
+        // Keep canvas aspect in sync with the live camera (handles front/back switch).
+        if (sw && sh) {
+          const canvasAspect = canvas.width / canvas.height;
+          const videoAspect = sw / sh;
+          if (Math.abs(canvasAspect - videoAspect) > 0.01) {
+            sizeCanvasToVideo(canvas, sw, sh);
+          }
+        }
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         if (sw && sh && v.readyState >= 2) {
