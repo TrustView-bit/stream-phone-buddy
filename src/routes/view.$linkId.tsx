@@ -318,121 +318,142 @@ function Viewer({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-8">
-        <h1 className="text-xl font-semibold tracking-tight">Live view: {label}</h1>
-        <p className="text-xs text-muted-foreground">
-          Viewer mode — no camera is being shared from this device.
-        </p>
-
-        <SessionBox session={session} />
-
-        <UserStatusPanel
-          stage={session.userStage}
-          detail={session.userDetail}
-          heartbeat={session.userHeartbeat}
-        />
-
-
-        <div
-          className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
-            userViewHidden ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-muted/30"
-          }`}
-        >
+      <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8 lg:py-10">
+        <div className="mb-6 flex flex-col gap-1 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-medium">
-              User view: {userViewHidden ? <span className="text-amber-600">HIDDEN</span> : "VISIBLE"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Camera & connection stay live regardless.
-            </div>
+            <h1 className="text-2xl font-semibold tracking-tight">Control Center</h1>
+            <p className="text-sm text-muted-foreground">{label}</p>
           </div>
-          <button
-            onClick={() => void onToggleHidden(!userViewHidden)}
-            className={`rounded-md px-4 py-2 text-sm font-medium ${
-              userViewHidden
-                ? "bg-amber-500 text-white hover:bg-amber-500/90"
-                : "border border-input bg-background hover:bg-accent"
-            }`}
-          >
-            {userViewHidden ? "Reveal user view" : "Hide user view"}
-          </button>
+          <p className="text-xs text-muted-foreground">
+            Viewer mode — no camera is being shared from this device.
+          </p>
         </div>
 
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+          {/* LEFT: phone mirror */}
+          <div className="flex flex-col items-center gap-3">
+            <div
+              id="phoneBox"
+              className="aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg"
+            />
+            <p className="text-xs text-muted-foreground">{status}</p>
+            {connected && (
+              <div className="flex w-full max-w-[360px] items-center justify-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+                <span className="mr-1 text-xs text-muted-foreground">Phone nav:</span>
+                <button
+                  onClick={() => sendKey(4)}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
+                  title="Back (KEYCODE_BACK)"
+                >
+                  ◀ Back
+                </button>
+                <button
+                  onClick={() => sendKey(3)}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
+                  title="Home (KEYCODE_HOME)"
+                >
+                  ● Home
+                </button>
+                <button
+                  onClick={() => sendKey(187)}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-accent"
+                  title="Recents (KEYCODE_APP_SWITCH)"
+                >
+                  ▭ Recents
+                </button>
+              </div>
+            )}
+          </div>
 
-        <div
-          id="phoneBox"
-          className="aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg"
-        />
+          {/* RIGHT: controls + status */}
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <SessionBox session={session} />
+              <UserStatusPanel
+                stage={session.userStage}
+                detail={session.userDetail}
+                heartbeat={session.userHeartbeat}
+              />
+            </div>
 
-        <div className="flex flex-wrap justify-center gap-3">
-          {!connected ? (
-            <button
-              onClick={() => void doConnect("preparing")}
-              className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            <div
+              className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
+                userViewHidden ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-muted/30"
+              }`}
             >
-              Connect & prepare
-            </button>
-          ) : (
-            <>
+              <div>
+                <div className="font-medium">
+                  User view:{" "}
+                  {userViewHidden ? (
+                    <span className="text-amber-600">HIDDEN</span>
+                  ) : (
+                    <span className="text-green-600">VISIBLE</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Camera & connection stay live regardless.
+                </div>
+              </div>
               <button
-                onClick={() => void onReady()}
-                className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                onClick={() => void onToggleHidden(!userViewHidden)}
+                className={`rounded-md px-4 py-2 text-sm font-medium ${
+                  userViewHidden
+                    ? "bg-amber-500 text-white hover:bg-amber-500/90"
+                    : "border border-input bg-background hover:bg-accent"
+                }`}
               >
-                Ready — hand off to user
+                {userViewHidden ? "Reveal user view" : "Hide user view"}
               </button>
-              <button
-                onClick={() => void doDisconnect()}
-                className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium hover:bg-accent"
-              >
-                Disconnect
-              </button>
-              <button
-                onClick={() => refreshStream()}
-                className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium hover:bg-accent"
-              >
-                Refresh stream
-              </button>
-            </>
-          )}
-          <button
-            onClick={() => void onReset()}
-            className="rounded-md border border-destructive/40 bg-background px-6 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
-          >
-            Reset session
-          </button>
-          <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm">
-            Tap to play
-          </button>
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/20 p-4">
+              <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Session controls
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {!connected ? (
+                  <button
+                    onClick={() => void doConnect("preparing")}
+                    className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    Connect & prepare
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => void onReady()}
+                      className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      Ready — hand off to user
+                    </button>
+                    <button
+                      onClick={() => void doDisconnect()}
+                      className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium hover:bg-accent"
+                    >
+                      Disconnect
+                    </button>
+                    <button
+                      onClick={() => refreshStream()}
+                      className="rounded-md border border-input bg-background px-6 py-2 text-sm font-medium hover:bg-accent"
+                    >
+                      Refresh stream
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => void onReset()}
+                  className="rounded-md border border-destructive/40 bg-background px-6 py-2 text-sm font-medium text-destructive hover:bg-destructive/10"
+                >
+                  Reset session
+                </button>
+                <button id="playBtn" hidden className="rounded-md bg-primary px-6 py-2 text-sm">
+                  Tap to play
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {connected && (
-          <div className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
-            <span className="mr-2 text-xs text-muted-foreground">Phone nav:</span>
-            <button
-              onClick={() => sendKey(4)}
-              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
-              title="Back (KEYCODE_BACK)"
-            >
-              ◀ Back
-            </button>
-            <button
-              onClick={() => sendKey(3)}
-              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
-              title="Home (KEYCODE_HOME)"
-            >
-              ● Home
-            </button>
-            <button
-              onClick={() => sendKey(187)}
-              className="rounded-md border border-input bg-background px-4 py-1.5 text-sm font-medium hover:bg-accent"
-              title="Recents (KEYCODE_APP_SWITCH)"
-            >
-              ▭ Recents
-            </button>
-          </div>
-        )}
-
-        <p className="text-xs text-muted-foreground">{status}</p>
       </div>
     </div>
   );
