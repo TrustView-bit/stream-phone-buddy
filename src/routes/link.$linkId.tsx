@@ -454,10 +454,21 @@ function LiveLink({
           This page uses your camera and streams it to a remote device.
         </p>
 
-        <div
-          id="phoneBox"
-          className="aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg"
-        />
+        <div className="relative aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-xl bg-muted shadow-lg">
+          <div
+            id="phoneBox"
+            className="absolute inset-0 h-full w-full"
+          />
+          {!isSuccessStatus(status) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-muted/95 text-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+              <p className="text-sm text-muted-foreground">
+                Connecting your camera…
+                {watchdogAttemptRef.current > 0 ? " (retrying)" : ""}
+              </p>
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-3">
           <button
