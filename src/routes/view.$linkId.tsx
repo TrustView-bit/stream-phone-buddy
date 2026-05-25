@@ -327,6 +327,13 @@ function Viewer({
 
         <SessionBox session={session} />
 
+        <UserStatusPanel
+          stage={session.userStage}
+          detail={session.userDetail}
+          heartbeat={session.userHeartbeat}
+        />
+
+
         <div
           className={`flex w-full items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm ${
             userViewHidden ? "border-amber-500/60 bg-amber-500/10" : "border-border bg-muted/30"
