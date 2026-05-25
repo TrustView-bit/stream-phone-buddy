@@ -359,8 +359,9 @@ function LiveLink({
     return (
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Please wait, preparing your session…
+        <p className="mt-3 text-sm text-muted-foreground">Waiting to start…</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          This will begin automatically when the session is ready. Please keep this page open.
         </p>
         <Spinner />
         <DebugBar
