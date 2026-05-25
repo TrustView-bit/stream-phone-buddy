@@ -441,8 +441,8 @@ function LiveLink({
 
   const baseFriendly = friendlyStatus(status);
   const friendly =
-    attempt > 1 && !isSuccessStatus(status.toLowerCase())
-      ? `${baseFriendly} (retrying)`
+    inTransitionRef.current || (watchdogAttemptRef.current > 0 && !isSuccessStatus(status))
+      ? `${baseFriendly}${watchdogAttemptRef.current > 0 ? " (retrying)" : ""}`
       : baseFriendly;
 
   return (
