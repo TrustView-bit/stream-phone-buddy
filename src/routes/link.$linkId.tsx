@@ -558,12 +558,15 @@ function friendlyStatus(raw: string): string {
   const s = raw.toLowerCase();
   if (s.startsWith("connected")) return "Live";
   if (s.includes("camera active")) return "Live";
+  if (s.includes("reconnecting") || s.includes("connection issue")) {
+    return "Reconnecting…";
+  }
   if (
-    s.includes("error") ||
-    s.includes("failed") ||
+    s.includes("connection lost.") ||
     s.includes("denied") ||
     s.includes("not available") ||
-    s.includes("unavailable")
+    s.includes("unavailable") ||
+    s.includes("failed")
   ) {
     return "Couldn't connect. Tap to try again.";
   }
