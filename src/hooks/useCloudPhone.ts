@@ -89,6 +89,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   };
 
   const stop = () => {
+    clearRecoveryTimer();
+    hasConnectedRef.current = false;
     try {
       if (engineRef.current) {
         try {
