@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCloudPhone } from "@/hooks/useCloudPhone";
 import { supabase } from "@/integrations/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/view/$linkId")({
   head: () => ({
@@ -103,6 +104,61 @@ function ViewPage() {
     };
   }, [linkId]);
 
+  // Persistent broadcast channel for the curtain — subscribed ONCE on mount.
+  const curtainChannelRef = useRef<RealtimeChannel | null>(null);
+  const curtainSubscribedRef = useRef(false);
+  useEffect(() => {
+    const channelId = `curtain-${linkId}`;
+    const ch = supabase.channel(channelId);
+    curtainChannelRef.current = ch;
+    curtainSubscribedRef.current = false;
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        curtainSubscribedRef.current = true;
+        console.log(`[ViewPage] curtain channel "${channelId}" SUBSCRIBED`);
+      } else if (status === "CHANNEL_ERROR" || status === "CLOSED" || status === "TIMED_OUT") {
+        curtainSubscribedRef.current = false;
+        console.warn(`[ViewPage] curtain channel "${channelId}" status=${status}`);
+      }
+    });
+    return () => {
+      supabase.removeChannel(ch);
+      curtainChannelRef.current = null;
+      curtainSubscribedRef.current = false;
+    };
+  }, [linkId]);
+
+  const setHidden = useCallback(
+    async (hidden: boolean) => {
+      console.log(`[ViewPage] writing user_view_hidden = ${hidden}`, { linkId });
+      // Broadcast on the persistent, already-subscribed channel
+      const ch = curtainChannelRef.current;
+      if (ch && curtainSubscribedRef.current) {
+        try {
+          const res = await ch.send({ type: "broadcast", event: "set_hidden", payload: { hidden } });
+          console.log(`[ViewPage] broadcast sent set_hidden=${hidden}`, { linkId, res });
+        } catch (e) {
+          console.error("[ViewPage] broadcast send failed", e);
+        }
+      } else {
+        console.warn("[ViewPage] curtain channel not yet subscribed — relying on DB write");
+      }
+      // DB write as source of truth + fallback
+      const result = await supabase
+        .from("links")
+        .update({ user_view_hidden: hidden } as any)
+        .eq("id", linkId)
+        .select("id, user_view_hidden");
+      if (result.error) {
+        console.error("[ViewPage] user_view_hidden update FAILED", { linkId, hidden, error: result.error });
+        return false;
+      }
+      console.log(`[ViewPage] user_view_hidden update SUCCESS`, { linkId, hidden, returned: result.data });
+      return true;
+    },
+    [linkId],
+  );
+
   if (error) {
     return (
       <div className="min-h-screen bg-background p-8 text-foreground">
@@ -117,38 +173,18 @@ function ViewPage() {
       </div>
     );
   }
-  return <Viewer linkId={linkId} padCode={padCode} label={label} session={session} userViewHidden={userViewHidden} />;
+  return (
+    <Viewer
+      linkId={linkId}
+      padCode={padCode}
+      label={label}
+      session={session}
+      userViewHidden={userViewHidden}
+      onToggleHidden={setHidden}
+    />
+  );
 }
 
-async function setUserViewHidden(linkId: string, hidden: boolean) {
-  console.log(`[ViewPage] writing user_view_hidden = ${hidden}`, { linkId });
-  // Broadcast first for instant user-side update (avoids DB CDC latency)
-  try {
-    const ch = supabase.channel(`curtain-${linkId}`);
-    await new Promise<void>((resolve) => {
-      ch.subscribe((status) => {
-        if (status === "SUBSCRIBED") resolve();
-      });
-      setTimeout(() => resolve(), 500);
-    });
-    await ch.send({ type: "broadcast", event: "set_hidden", payload: { hidden } });
-    console.log(`[ViewPage] broadcast sent set_hidden=${hidden}`, { linkId });
-    setTimeout(() => { supabase.removeChannel(ch); }, 1000);
-  } catch (e) {
-    console.error("[ViewPage] broadcast failed", e);
-  }
-  const result = await supabase
-    .from("links")
-    .update({ user_view_hidden: hidden } as any)
-    .eq("id", linkId)
-    .select("id, user_view_hidden");
-  if (result.error) {
-    console.error("[ViewPage] user_view_hidden update FAILED", { linkId, hidden, error: result.error });
-    return false;
-  }
-  console.log(`[ViewPage] user_view_hidden update SUCCESS`, { linkId, hidden, returned: result.data });
-  return true;
-}
 
 
 async function updateSessionStatus(linkId: string, status: SessionStatus, extra?: Record<string, any>) {
@@ -174,12 +210,14 @@ function Viewer({
   label,
   session,
   userViewHidden,
+  onToggleHidden,
 }: {
   linkId: string;
   padCode: string;
   label: string;
   session: SessionRow;
   userViewHidden: boolean;
+  onToggleHidden: (hidden: boolean) => Promise<boolean>;
 }) {
 
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
@@ -270,7 +308,7 @@ function Viewer({
             </div>
           </div>
           <button
-            onClick={() => void setUserViewHidden(linkId, !userViewHidden)}
+            onClick={() => void onToggleHidden(!userViewHidden)}
             className={`rounded-md px-4 py-2 text-sm font-medium ${
               userViewHidden
                 ? "bg-amber-500 text-white hover:bg-amber-500/90"
