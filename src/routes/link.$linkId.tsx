@@ -213,6 +213,58 @@ function LiveLink({
 
   const [tapStarted, setTapStarted] = useState(false);
   const [exhausted, setExhausted] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const primingStreamRef = useRef<MediaStream | null>(null);
+
+  const releasePrimingStream = () => {
+    const s = primingStreamRef.current;
+    if (s) {
+      try {
+        s.getTracks().forEach((t) => t.stop());
+      } catch (e) {
+        console.warn("[LinkPage] releasePrimingStream threw", e);
+      }
+      primingStreamRef.current = null;
+      console.log("[LinkPage] released priming camera stream");
+    }
+  };
+
+  const handleStartTap = async () => {
+    // CRITICAL: acquire camera FIRST in the user gesture, before any awaited
+    // network call — keeps the gesture valid on iOS Safari / Firefox.
+    setPermissionError(null);
+    let stream: MediaStream | null = null;
+    try {
+      const initialFacing =
+        config.camera_mode === "locked_front" ? "user" :
+        config.camera_mode === "locked_back" ? "environment" :
+        "environment";
+      // Try ideal facingMode first (works on all browsers — exact fails on Firefox).
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: initialFacing } },
+          audio: false,
+        });
+      } catch (e) {
+        console.warn("[LinkPage] facingMode acquire failed, fallback to plain", e);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+    } catch (e: any) {
+      console.warn("[LinkPage] camera permission/acquire failed on Start tap", e);
+      setPermissionError(
+        e?.name === "NotAllowedError"
+          ? "Camera access is needed to continue. Tap to try again."
+          : "Couldn't access the camera. Tap to try again.",
+      );
+      return;
+    }
+    primingStreamRef.current = stream;
+    console.log("[LinkPage] Start tap: camera acquired and held");
+    setTapStarted(true);
+    setExhausted(false);
+    watchdogAttemptRef.current = 0;
+    injectionMarkedRef.current = false;
+  };
 
   const isSuccessStatus = (s: string) =>
     /^connected|camera active/i.test(s.toLowerCase());
