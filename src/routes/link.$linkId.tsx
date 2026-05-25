@@ -405,6 +405,25 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
+  // GDPR safety: apply curtain by pausing the downstream video the user receives.
+  // Default-hidden — pause whenever userViewHidden is true OR while we're still uncertain.
+  // Resume only when admin explicitly reveals (userViewHidden === false).
+  useEffect(() => {
+    if (!isSuccessStatus(status)) return;
+    if (userViewHidden) {
+      console.log("[link] applying curtain: pauseDownstream()");
+      pauseDownstream();
+      // Re-assert shortly after in case the SDK auto-resumed during connect.
+      const t = setTimeout(() => pauseDownstream(), 300);
+      return () => clearTimeout(t);
+    } else {
+      console.log("[link] revealing: resumeDownstream()");
+      resumeDownstream();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userViewHidden, status]);
+
+
   const [live, setLive] = useState(false);
 
   useEffect(() => {
