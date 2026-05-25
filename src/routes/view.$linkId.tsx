@@ -138,7 +138,7 @@ function Viewer({
   label: string;
   session: SessionRow;
 }) {
-  const { status, start, stop, refreshStream } = useCloudPhone({
+  const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
     mode: "viewer",
     padCode,
     viewId: "phoneBox",
