@@ -86,7 +86,11 @@ function ViewPage() {
             userAgent: n?.session_user_agent ?? null,
             connectedAt: n?.session_connected_at ?? null,
           });
+          if (typeof n?.user_view_hidden === "boolean") {
+            setUserViewHidden(n.user_view_hidden);
+          }
         },
+
       )
       .subscribe((status, error) => {
         console.log("[ViewPage] realtime subscription status", { linkId, filter, status, error });
