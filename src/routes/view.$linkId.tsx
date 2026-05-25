@@ -184,6 +184,26 @@ function ViewPage() {
     [linkId],
   );
 
+  const broadcastFinish = useCallback(() => {
+    const ch = curtainChannelRef.current;
+    if (!ch || !curtainSubscribedRef.current) {
+      console.warn("[ViewPage] curtain channel not yet subscribed for finish — relying on DB write");
+      return;
+    }
+    const fire = async (label: string) => {
+      try {
+        const res = await ch.send({ type: "broadcast", event: "session_finished", payload: {} });
+        console.log(`[ViewPage] broadcast sent session_finished (${label})`, { linkId, res });
+      } catch (e) {
+        console.error(`[ViewPage] session_finished broadcast failed (${label})`, e);
+      }
+    };
+    void fire("t+0");
+    setTimeout(() => void fire("t+200"), 200);
+    setTimeout(() => void fire("t+500"), 500);
+    setTimeout(() => void fire("t+1000"), 1000);
+  }, [linkId]);
+
   if (error) {
     return (
       <div className="min-h-screen bg-background p-8 text-foreground">
@@ -206,6 +226,7 @@ function ViewPage() {
       session={session}
       userViewHidden={userViewHidden}
       onToggleHidden={setHidden}
+      broadcastFinish={broadcastFinish}
     />
   );
 }
@@ -236,6 +257,7 @@ function Viewer({
   session,
   userViewHidden,
   onToggleHidden,
+  broadcastFinish,
 }: {
   linkId: string;
   padCode: string;
@@ -243,6 +265,7 @@ function Viewer({
   session: SessionRow;
   userViewHidden: boolean;
   onToggleHidden: (hidden: boolean) => Promise<boolean>;
+  broadcastFinish: () => void;
 }) {
 
   const { status, start, stop, refreshStream, sendKey } = useCloudPhone({
@@ -294,14 +317,17 @@ function Viewer({
 
   const onFinish = async () => {
     if (!window.confirm("End the session for this user?")) return;
-    // 1) Flip status to 'finished' so the user page tears down + shows thank-you
+    // 1) Broadcast 'session_finished' (fired several times by the parent).
+    broadcastFinish();
+    // 2) Flip status to 'finished' (DB fallback for poll/realtime)
     await updateSessionStatus(linkId, "finished");
-    // 2) Tear down admin viewer fully
+    // 3) Tear down admin viewer fully
     stop();
     setConnected(false);
     autoReconnectRef.current = false;
     liveMarkedRef.current = false;
-    // 3) Give the user page a moment to receive 'finished', then free the phone
+    // 4) Hold 'finished' long enough that poll/realtime backstops also see it,
+    // then free the phone by returning to idle.
     setTimeout(() => {
       void updateSessionStatus(linkId, "idle", {
         session_user_agent: null,
@@ -310,8 +336,9 @@ function Viewer({
         user_detail: null,
         user_heartbeat: null,
       });
-    }, 1500);
+    }, 4000);
   };
+
 
 
   // When the user starts injecting, auto-reconnect admin in viewer mode
