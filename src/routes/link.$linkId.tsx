@@ -269,6 +269,9 @@ function LiveLink({
   const isSuccessStatus = (s: string) =>
     /^connected|camera active/i.test(s.toLowerCase());
 
+  const isRecoveringStatus = (s: string) =>
+    /reconnecting|connection issue/i.test(s.toLowerCase());
+
   const clearWatchdog = () => {
     if (watchdogTimerRef.current) {
       clearTimeout(watchdogTimerRef.current);
@@ -283,6 +286,12 @@ function LiveLink({
       const s = statusRef.current;
       console.log("[LinkPage] watchdog check", { status: s, attempt: watchdogAttemptRef.current });
       if (isSuccessStatus(s)) return;
+      // Don't fight the hook's recovery window — let it self-heal first.
+      if (isRecoveringStatus(s)) {
+        console.log("[LinkPage] watchdog deferring: hook is recovering");
+        scheduleWatchdog();
+        return;
+      }
       if (watchdogAttemptRef.current >= 3) {
         console.log("[LinkPage] watchdog exhausted");
         setExhausted(true);
