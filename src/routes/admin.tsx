@@ -15,6 +15,20 @@ export const Route = createFileRoute("/admin")({
 const ADMIN_PASSWORD = "changeme";
 
 type CameraMode = "dynamic" | "locked_back" | "locked_front";
+type SessionStatus =
+  | "idle"
+  | "preparing"
+  | "ready_for_user"
+  | "connecting"
+  | "connected"
+  | "live"
+  | "injecting"
+  | "active"
+  | "error"
+  | "failed"
+  | "connection_lost"
+  | "ended"
+  | string;
 
 interface LinkRow {
   id: string;
@@ -27,6 +41,7 @@ interface LinkRow {
   front_definition_id: number;
   front_framerate_id: number;
   front_bitrate_id: number;
+  session_status: SessionStatus;
 }
 
 const DEF_OPTS = [
