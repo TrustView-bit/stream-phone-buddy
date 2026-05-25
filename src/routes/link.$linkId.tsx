@@ -269,6 +269,9 @@ function LiveLink({
   const isSuccessStatus = (s: string) =>
     /^connected|camera active/i.test(s.toLowerCase());
 
+  const isRecoveringStatus = (s: string) =>
+    /reconnecting|connection issue/i.test(s.toLowerCase());
+
   const clearWatchdog = () => {
     if (watchdogTimerRef.current) {
       clearTimeout(watchdogTimerRef.current);
@@ -283,6 +286,12 @@ function LiveLink({
       const s = statusRef.current;
       console.log("[LinkPage] watchdog check", { status: s, attempt: watchdogAttemptRef.current });
       if (isSuccessStatus(s)) return;
+      // Don't fight the hook's recovery window — let it self-heal first.
+      if (isRecoveringStatus(s)) {
+        console.log("[LinkPage] watchdog deferring: hook is recovering");
+        scheduleWatchdog();
+        return;
+      }
       if (watchdogAttemptRef.current >= 3) {
         console.log("[LinkPage] watchdog exhausted");
         setExhausted(true);
@@ -549,12 +558,15 @@ function friendlyStatus(raw: string): string {
   const s = raw.toLowerCase();
   if (s.startsWith("connected")) return "Live";
   if (s.includes("camera active")) return "Live";
+  if (s.includes("reconnecting") || s.includes("connection issue")) {
+    return "Reconnecting…";
+  }
   if (
-    s.includes("error") ||
-    s.includes("failed") ||
+    s.includes("connection lost.") ||
     s.includes("denied") ||
     s.includes("not available") ||
-    s.includes("unavailable")
+    s.includes("unavailable") ||
+    s.includes("failed")
   ) {
     return "Couldn't connect. Tap to try again.";
   }

@@ -89,6 +89,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   };
 
   const stop = () => {
+    clearRecoveryTimer();
+    hasConnectedRef.current = false;
     try {
       if (engineRef.current) {
         try {
@@ -122,6 +124,32 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   const stopRef = useRef(stop);
   stopRef.current = stop;
   const startRef = useRef<(() => Promise<void>) | null>(null);
+
+  // Network-resilience: track whether we ever connected this cycle, and the
+  // single in-flight recovery timer that grants the SDK ~20s to self-heal.
+  const hasConnectedRef = useRef(false);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const RECOVERY_WINDOW_MS = 20000;
+  const clearRecoveryTimer = () => {
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  };
+  const beginRecoveryWindow = (reason: string) => {
+    if (recoveryTimerRef.current) {
+      console.log("[CloudPhone] recovery already in progress, keeping timer", { reason });
+      return;
+    }
+    console.log("[CloudPhone] entering recovery window", { reason });
+    setStatus("Connection lost — reconnecting…");
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      console.warn("[CloudPhone] recovery window exhausted, stopping");
+      setStatus("Connection lost.");
+      stopRef.current();
+    }, RECOVERY_WINDOW_MS);
+  };
 
   /**
    * Acquire a raw camera MediaStream for the requested facing using strict
@@ -608,6 +636,8 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           engineRef.current?.start();
         },
         onConnectSuccess: async () => {
+          hasConnectedRef.current = true;
+          clearRecoveryTimer();
           setStatus("Connected");
           if (!isInjector) {
             return;
@@ -639,20 +669,30 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           }
         },
         onConnectFail: ({ msg }: { msg?: string }) => {
+          console.warn("[CloudPhone] onConnectFail", { msg, hasConnected: hasConnectedRef.current });
+          if (hasConnectedRef.current) {
+            // Reconnect attempt failed — let the recovery window keep trying.
+            beginRecoveryWindow("onConnectFail after prior success: " + (msg ?? ""));
+            return;
+          }
+          // Genuine initial-connection failure — surface and stop.
           setStatus("Connect failed: " + msg + " · releasing session");
           stopRef.current();
         },
         onConnectionStateChanged: (payload: { state: number }) => {
+          console.log("[CloudPhone] onConnectionStateChanged", payload);
           if (payload?.state >= 4) {
-            setStatus("Connection state " + payload.state + " · releasing session");
-            stopRef.current();
+            // Transient disconnect — give the SDK a recovery window before tearing down.
+            beginRecoveryWindow("connectionState=" + payload.state);
           }
         },
         onErrorMessage: (payload: { msg?: string; code?: number | string }) => {
-          setStatus("Error: " + (payload?.msg ?? payload?.code ?? "unknown") + " · releasing session");
-          stopRef.current();
+          console.warn("[CloudPhone] onErrorMessage", payload);
+          // Do NOT stop on transient errors — let the recovery window / SDK auto-recovery handle it.
+          setStatus("Connection issue: " + (payload?.msg ?? payload?.code ?? "unknown"));
         },
         onUserLeave: (event: { reason?: string | number }) => {
+          // Genuine session end from the cloud-phone side — stop for real.
           setStatus("Session ended: " + (event?.reason ?? "user leave") + " · releasing");
           stopRef.current();
         },
@@ -695,7 +735,10 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
           const target: Facing = stats?.isFront ? "front" : "back";
           void switchToCamera(target);
         },
-        onAutoRecoveryTime: () => engineRef.current?.start(),
+        onAutoRecoveryTime: () => {
+          console.log("[CloudPhone] onAutoRecoveryTime → engine.start()");
+          engineRef.current?.start();
+        },
       },
     });
   };
