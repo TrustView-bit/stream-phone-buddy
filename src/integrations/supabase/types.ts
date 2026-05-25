@@ -85,6 +85,7 @@ export type Database = {
           session_status: string
           session_updated_at: string | null
           session_user_agent: string | null
+          user_view_hidden: boolean
         }
         Insert: {
           back_bitrate_id?: number
@@ -102,6 +103,7 @@ export type Database = {
           session_status?: string
           session_updated_at?: string | null
           session_user_agent?: string | null
+          user_view_hidden?: boolean
         }
         Update: {
           back_bitrate_id?: number
@@ -119,6 +121,7 @@ export type Database = {
           session_status?: string
           session_updated_at?: string | null
           session_user_agent?: string | null
+          user_view_hidden?: boolean
         }
         Relationships: []
       }
