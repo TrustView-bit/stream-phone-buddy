@@ -366,6 +366,12 @@ function LiveLink({
     releasePrimingStream();
   }, []);
 
+  const live = isSuccessStatus(status);
+
+  useEffect(() => {
+    console.log("[link] status:", status, "live:", live);
+  }, [status, live]);
+
   // ===== Initial Start screen =====
   if (!tapStarted) {
     return (
