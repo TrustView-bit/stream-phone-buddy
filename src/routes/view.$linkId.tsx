@@ -26,6 +26,7 @@ function ViewPage() {
   const [padCode, setPadCode] = useState<string | null>(null);
   const [label, setLabel] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const [userViewHidden, setUserViewHidden] = useState(false);
   const [session, setSession] = useState<SessionRow>({
     status: "idle",
     userAgent: null,
@@ -37,7 +38,7 @@ function ViewPage() {
     (async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("label, pad_code, session_status, session_user_agent, session_connected_at")
+        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled) return;
@@ -51,6 +52,7 @@ function ViewPage() {
       }
       setLabel(data.label);
       setPadCode(data.pad_code);
+      setUserViewHidden(Boolean((data as any).user_view_hidden));
       setSession({
         status: (((data as any).session_status as SessionStatus) ?? "idle"),
         userAgent: (data as any).session_user_agent ?? null,
@@ -61,6 +63,7 @@ function ViewPage() {
       cancelled = true;
     };
   }, [linkId]);
+
 
   useEffect(() => {
     const filter = `id=eq.${linkId}`;
