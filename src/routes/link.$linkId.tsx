@@ -129,7 +129,13 @@ function LinkPage() {
         console.log(`[LinkPage] received broadcast set_hidden = ${hidden}`, { linkId });
         setUserViewHidden(hidden);
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          console.log(`[LinkPage] curtain channel "curtain-${linkId}" SUBSCRIBED`);
+        } else if (status === "CHANNEL_ERROR" || status === "CLOSED" || status === "TIMED_OUT") {
+          console.warn(`[LinkPage] curtain channel "curtain-${linkId}" status=${status}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
