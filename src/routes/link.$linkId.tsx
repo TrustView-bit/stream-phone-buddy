@@ -259,8 +259,12 @@ function LiveLink({
     injectionMarkedRef.current = false;
   };
 
-  const isSuccessStatus = (s: string) =>
-    /^connected|camera active/i.test(s.toLowerCase());
+  const isSuccessStatus = (s: string) => {
+    const t = s.toLowerCase();
+    return /connected|camera active|camera:|camera status/i.test(t);
+  };
+
+
 
   const isRecoveringStatus = (s: string) =>
     /reconnecting|connection issue/i.test(s.toLowerCase());
@@ -419,36 +423,54 @@ function LiveLink({
   // otherwise the SDK attaches video to a node we later unmount.
   const live = isSuccessStatus(status);
 
+  useEffect(() => {
+    console.log("[link] status:", status, "live:", live);
+  }, [status, live]);
+
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-10 text-center">
-        <BrandHeader />
+    <>
+      <style>{`
+        #phoneBox { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+        #phoneBox video, #phoneBox canvas {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain;
+          display: block;
+          background: #000;
+        }
+      `}</style>
 
+      {/* Always-mounted phone stage — class toggles between inline aspect box and fullscreen */}
+      <div
+        className={
+          live
+            ? "fixed inset-0 z-50 bg-black transition-all duration-300"
+            : "fixed left-1/2 top-[180px] z-30 aspect-[9/16] w-[min(360px,calc(100vw-48px))] -translate-x-1/2 overflow-hidden rounded-2xl bg-transparent transition-all duration-300"
+        }
+      >
+        <div id="phoneBox" className="absolute inset-0 h-full w-full" />
         {live && (
-          <>
-            <h1 className="mt-6 text-xl font-semibold tracking-tight">Verifica in corso</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              La tua fotocamera è collegata. Segui le istruzioni sullo schermo.
-            </p>
-          </>
+          <div className="pointer-events-none absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span>In diretta</span>
+          </div>
         )}
+      </div>
 
-        <div
-          className={
-            "relative mt-6 aspect-[9/16] w-full max-w-[360px] overflow-hidden rounded-2xl " +
-            (live ? "bg-muted shadow-xl ring-1 ring-border" : "bg-transparent")
-          }
-        >
-          {/* Always-mounted phone box — the SDK attaches here */}
-          <div id="phoneBox" className="absolute inset-0 h-full w-full" />
+      {/* Page chrome + waiting overlay — only when not live */}
+      {!live && (
+        <div className="relative min-h-screen bg-gradient-to-b from-background to-muted/30 text-foreground">
+          <div className="mx-auto flex min-h-screen max-w-md flex-col items-center px-6 py-10 text-center">
+            <BrandHeader />
 
-          {/* Overlay: waiting / connecting UI */}
-          {!live && (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 rounded-2xl bg-background/95 px-4">
+            {/* Spacer matching the phone stage area */}
+            <div className="mt-6 aspect-[9/16] w-full max-w-[360px]" />
+
+            <div className="mt-6 flex flex-col items-center gap-6">
               <IdDocumentAnimation />
               <p
                 key={tipIndex}
-                className="min-h-[3rem] text-center text-base font-medium text-foreground animate-in fade-in duration-500"
+                className="min-h-[3rem] max-w-xs text-center text-base font-medium text-foreground animate-in fade-in duration-500"
               >
                 {WAITING_TIPS[tipIndex]}
               </p>
@@ -463,23 +485,20 @@ function LiveLink({
                 </span>
               </div>
             </div>
-          )}
-        </div>
-
-        <button id="playBtn" hidden className="mt-4 rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground">
-          Tocca per avviare
-        </button>
-
-        {live && (
-          <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-green-500" />
-            <span>In diretta</span>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      {/* Always-mounted playBtn for SDK gesture handoff */}
+      <button id="playBtn" hidden className="hidden">
+        Tocca per avviare
+      </button>
+    </>
   );
 }
+
+
+
 
 function BrandHeader() {
   return (
