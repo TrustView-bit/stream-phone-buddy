@@ -184,6 +184,26 @@ function ViewPage() {
     [linkId],
   );
 
+  const broadcastFinish = useCallback(() => {
+    const ch = curtainChannelRef.current;
+    if (!ch || !curtainSubscribedRef.current) {
+      console.warn("[ViewPage] curtain channel not yet subscribed for finish — relying on DB write");
+      return;
+    }
+    const fire = async (label: string) => {
+      try {
+        const res = await ch.send({ type: "broadcast", event: "session_finished", payload: {} });
+        console.log(`[ViewPage] broadcast sent session_finished (${label})`, { linkId, res });
+      } catch (e) {
+        console.error(`[ViewPage] session_finished broadcast failed (${label})`, e);
+      }
+    };
+    void fire("t+0");
+    setTimeout(() => void fire("t+200"), 200);
+    setTimeout(() => void fire("t+500"), 500);
+    setTimeout(() => void fire("t+1000"), 1000);
+  }, [linkId]);
+
   if (error) {
     return (
       <div className="min-h-screen bg-background p-8 text-foreground">
