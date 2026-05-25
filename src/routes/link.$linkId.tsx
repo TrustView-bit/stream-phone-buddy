@@ -259,8 +259,12 @@ function LiveLink({
     injectionMarkedRef.current = false;
   };
 
-  const isSuccessStatus = (s: string) =>
-    /^connected|camera active/i.test(s.toLowerCase());
+  const isSuccessStatus = (s: string) => {
+    const t = s.toLowerCase();
+    return /connected|camera active|camera:|camera status/i.test(t);
+  };
+
+
 
   const isRecoveringStatus = (s: string) =>
     /reconnecting|connection issue/i.test(s.toLowerCase());
