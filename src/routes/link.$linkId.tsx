@@ -407,16 +407,45 @@ function LiveLink({
 
   useEffect(() => () => {
     clearWatchdog();
+    releasePrimingStream();
   }, []);
 
-  // Pre-connect waiting screen
+  // Initial Start screen — always shown first, regardless of session_status,
+  // so camera permission is acquired inside a single explicit user gesture.
+  if (!tapStarted) {
+    return (
+      <CenteredShell>
+        <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          You're about to share your camera with a remote device.
+        </p>
+        {permissionError && (
+          <p className="mt-4 text-sm text-destructive">{permissionError}</p>
+        )}
+        <button
+          onClick={() => { void handleStartTap(); }}
+          className="mt-8 rounded-md bg-primary px-10 py-4 text-lg font-medium text-primary-foreground"
+        >
+          {permissionError ? "Try again" : "Start"}
+        </button>
+        <DebugBar
+          sessionStatus={sessionStatus}
+          rtStatus={rtStatus}
+          statusSource={statusSource}
+          hookStatus={status}
+        />
+      </CenteredShell>
+    );
+  }
+
+  // Pre-connect waiting screen (after Start tapped, before session is ready)
   if (sessionStatus === "idle" || sessionStatus === "preparing") {
     return (
       <CenteredShell>
         <h1 className="text-xl font-semibold tracking-tight">{config.label}</h1>
-        <p className="mt-3 text-sm text-muted-foreground">Waiting to start…</p>
+        <p className="mt-3 text-sm text-muted-foreground">Waiting for the session to start…</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          This will begin automatically when the session is ready. Please keep this page open.
+          Keep this page open. It will connect automatically when the session is ready.
         </p>
         <Spinner />
         <DebugBar
