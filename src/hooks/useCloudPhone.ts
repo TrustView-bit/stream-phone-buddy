@@ -123,6 +123,32 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
   stopRef.current = stop;
   const startRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Network-resilience: track whether we ever connected this cycle, and the
+  // single in-flight recovery timer that grants the SDK ~20s to self-heal.
+  const hasConnectedRef = useRef(false);
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const RECOVERY_WINDOW_MS = 20000;
+  const clearRecoveryTimer = () => {
+    if (recoveryTimerRef.current) {
+      clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
+    }
+  };
+  const beginRecoveryWindow = (reason: string) => {
+    if (recoveryTimerRef.current) {
+      console.log("[CloudPhone] recovery already in progress, keeping timer", { reason });
+      return;
+    }
+    console.log("[CloudPhone] entering recovery window", { reason });
+    setStatus("Connection lost — reconnecting…");
+    recoveryTimerRef.current = setTimeout(() => {
+      recoveryTimerRef.current = null;
+      console.warn("[CloudPhone] recovery window exhausted, stopping");
+      setStatus("Connection lost.");
+      stopRef.current();
+    }, RECOVERY_WINDOW_MS);
+  };
+
   /**
    * Acquire a raw camera MediaStream for the requested facing using strict
    * device-label/facingMode matching. Returns null on failure. No fallback to
