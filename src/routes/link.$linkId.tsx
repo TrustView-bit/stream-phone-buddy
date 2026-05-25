@@ -14,7 +14,7 @@ export const Route = createFileRoute("/link/$linkId")({
   component: LinkPage,
 });
 
-type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live";
+type SessionStatus = "idle" | "preparing" | "ready_for_user" | "injecting" | "live" | "finished";
 type StatusSource = "init" | "realtime" | "poll";
 
 interface LinkConfig {
