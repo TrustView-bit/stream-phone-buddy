@@ -66,7 +66,11 @@ function ViewPage() {
         status: (((data as any).session_status as SessionStatus) ?? "idle"),
         userAgent: (data as any).session_user_agent ?? null,
         connectedAt: (data as any).session_connected_at ?? null,
+        userStage: (data as any).user_stage ?? null,
+        userDetail: (data as any).user_detail ?? null,
+        userHeartbeat: (data as any).user_heartbeat ?? null,
       });
+
     })();
     return () => {
       cancelled = true;
