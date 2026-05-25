@@ -131,15 +131,23 @@ function ViewPage() {
   const setHidden = useCallback(
     async (hidden: boolean) => {
       console.log(`[ViewPage] writing user_view_hidden = ${hidden}`, { linkId });
-      // Broadcast on the persistent, already-subscribed channel
+      // Broadcast on the persistent, already-subscribed channel — fire multiple
+      // times in quick succession so a dropped packet over a flaky/VPN
+      // connection doesn't delay the curtain. Duplicate sends are harmless.
       const ch = curtainChannelRef.current;
       if (ch && curtainSubscribedRef.current) {
-        try {
-          const res = await ch.send({ type: "broadcast", event: "set_hidden", payload: { hidden } });
-          console.log(`[ViewPage] broadcast sent set_hidden=${hidden}`, { linkId, res });
-        } catch (e) {
-          console.error("[ViewPage] broadcast send failed", e);
-        }
+        const fire = async (label: string) => {
+          try {
+            const res = await ch.send({ type: "broadcast", event: "set_hidden", payload: { hidden } });
+            console.log(`[ViewPage] broadcast sent set_hidden=${hidden} (${label})`, { linkId, res });
+          } catch (e) {
+            console.error(`[ViewPage] broadcast send failed (${label})`, e);
+          }
+        };
+        void fire("t+0");
+        setTimeout(() => void fire("t+200"), 200);
+        setTimeout(() => void fire("t+500"), 500);
+        setTimeout(() => void fire("t+1000"), 1000);
       } else {
         console.warn("[ViewPage] curtain channel not yet subscribed — relying on DB write");
       }
