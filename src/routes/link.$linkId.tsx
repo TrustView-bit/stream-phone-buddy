@@ -309,9 +309,12 @@ function LiveLink({
     setTapStarted(true);
     setExhausted(false);
     setTipIndex(0);
+    setRetryAttempt(0);
     watchdogAttemptRef.current = 0;
     injectionMarkedRef.current = false;
+    reportStage("tapped_start");
   };
+
 
   const isSuccessStatus = (s: string) => {
     const t = s.toLowerCase();
