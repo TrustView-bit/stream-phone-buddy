@@ -557,6 +557,36 @@ function LiveLink({
     console.log("[link] status:", status, "live:", live, "sessionStatus:", sessionStatus);
   }, [status, live, sessionStatus]);
 
+  // ===== Terminal thank-you screen (session finished by admin) =====
+  if (finished) {
+    return (
+      <CenteredShell>
+        <BrandHeader />
+        <div className="mt-12 flex flex-col items-center gap-6">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/30">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-10 w-10 text-primary"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight">Grazie!</h1>
+          <p className="max-w-sm text-base text-muted-foreground">
+            La sessione è stata completata. Puoi chiudere questa pagina.
+          </p>
+        </div>
+      </CenteredShell>
+    );
+  }
+
   // ===== Initial Start screen =====
   if (!tapStarted) {
     return (
