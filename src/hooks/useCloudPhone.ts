@@ -362,26 +362,17 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     requiredCameraRef.current = initialFacing;
 
     if (mode === "injector") {
-      // Permission probe + label population
-      const existingWindowPatch = window as unknown as { __cloudPhoneOrigGetUserMedia?: typeof navigator.mediaDevices.getUserMedia };
-      const getRawUserMedia = existingWindowPatch.__cloudPhoneOrigGetUserMedia ?? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-      try {
-        const temp = await getRawUserMedia({ video: { width: { ideal: 3840 }, height: { ideal: 2160 } } });
-        temp.getTracks().forEach((t) => { try { t.stop(); } catch (_) {} });
-        await new Promise((r) => setTimeout(r, 500));
-      } catch (e) {
-        console.warn("[CloudPhone] initial permission probe failed", e);
-        setStatus("Camera permission denied");
+      // Acquire camera FIRST, within the user gesture (iOS Safari / Firefox
+      // invalidate the gesture once an unrelated awaited op runs first).
+      // acquireCameraStream handles the label-priming, layered facingMode
+      // fallbacks, and accurate error mapping internally.
+      const { stream: raw, error: acquireError } = await acquireCameraStream(initialFacing);
+      if (!raw) {
+        console.warn("[CloudPhone] camera acquisition failed", acquireError);
+        setStatus(acquireError || `Required ${initialFacing} camera not available`);
         return;
       }
 
-      const { stream: raw, error: acquireError } = await acquireCameraStream(initialFacing);
-      if (!raw) {
-        const msg = `Required ${initialFacing} camera not available`;
-        console.warn("[CloudPhone]", msg, acquireError);
-        setStatus(msg);
-        return;
-      }
 
       rawCameraRef.current = raw;
       const rawTrackInit = raw.getVideoTracks()[0];
