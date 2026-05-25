@@ -87,7 +87,10 @@ function ViewPage() {
             connectedAt: n?.session_connected_at ?? null,
           });
           if (typeof n?.user_view_hidden === "boolean") {
+            console.log(`[ViewPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
+          } else {
+            console.log("[ViewPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
@@ -118,14 +121,17 @@ function ViewPage() {
 }
 
 async function setUserViewHidden(linkId: string, hidden: boolean) {
+  console.log(`[ViewPage] writing user_view_hidden = ${hidden}`, { linkId });
   const result = await supabase
     .from("links")
     .update({ user_view_hidden: hidden } as any)
-    .eq("id", linkId);
+    .eq("id", linkId)
+    .select("id, user_view_hidden");
   if (result.error) {
-    console.error("[ViewPage] user_view_hidden update failed", { linkId, hidden, error: result.error });
+    console.error("[ViewPage] user_view_hidden update FAILED", { linkId, hidden, error: result.error });
     return false;
   }
+  console.log(`[ViewPage] user_view_hidden update SUCCESS`, { linkId, hidden, returned: result.data });
   return true;
 }
 

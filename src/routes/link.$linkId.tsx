@@ -111,7 +111,10 @@ function LinkPage() {
             setStatusSource("realtime");
           }
           if (typeof n?.user_view_hidden === "boolean") {
+            console.log(`[LinkPage] received user_view_hidden = ${n.user_view_hidden} via realtime`, { linkId });
             setUserViewHidden(n.user_view_hidden);
+          } else {
+            console.log("[LinkPage] realtime UPDATE without user_view_hidden field", { linkId, payloadNew: n });
           }
         },
 
@@ -485,7 +488,16 @@ function LiveLink({
         /* Small box keeps contain so the whole video is visible */
         #phoneBox video, #phoneBox canvas { object-fit: contain; }
         /* Fullscreen fills screen edge-to-edge */
-        .fullscreen-phone #phoneBox video, .fullscreen-phone #phoneBox canvas { object-fit: cover; }
+        .fullscreen-phone, .fullscreen-phone #phoneBox, .fullscreen-phone #phoneBox > div {
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .fullscreen-phone #phoneBox video,
+        .fullscreen-phone #phoneBox canvas {
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
       `}</style>
 
       {/* Always-mounted phone stage — class toggles between inline aspect box and fullscreen */}
