@@ -348,7 +348,8 @@ function LiveLink({
 
   const isSuccessStatus = (s: string) => {
     const t = s.toLowerCase();
-    return /connected|camera active|camera:|camera status/i.test(t);
+    return /connected|camera active|camera:|camera status|switching camera|camera switched/i.test(t);
+
   };
 
 
