@@ -47,7 +47,7 @@ function ViewPage() {
     (async () => {
       const { data, error } = await supabase
         .from("links")
-        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden")
+        .select("label, pad_code, session_status, session_user_agent, session_connected_at, user_view_hidden, user_stage, user_detail, user_heartbeat")
         .eq("id", linkId)
         .maybeSingle();
       if (cancelled) return;
