@@ -314,25 +314,8 @@ function Viewer({
 
   const onFinish = async () => {
     if (!window.confirm("End the session for this user?")) return;
-    // 1) Broadcast 'session_finished' on the curtain channel — fire several
-    // times so a dropped packet doesn't lose the terminal signal.
-    const ch = curtainChannelRef.current;
-    if (ch && curtainSubscribedRef.current) {
-      const fire = async (label: string) => {
-        try {
-          const res = await ch.send({ type: "broadcast", event: "session_finished", payload: {} });
-          console.log(`[ViewPage] broadcast sent session_finished (${label})`, { linkId, res });
-        } catch (e) {
-          console.error(`[ViewPage] session_finished broadcast failed (${label})`, e);
-        }
-      };
-      void fire("t+0");
-      setTimeout(() => void fire("t+200"), 200);
-      setTimeout(() => void fire("t+500"), 500);
-      setTimeout(() => void fire("t+1000"), 1000);
-    } else {
-      console.warn("[ViewPage] curtain channel not yet subscribed for finish — relying on DB write");
-    }
+    // 1) Broadcast 'session_finished' (fired several times by the parent).
+    broadcastFinish();
     // 2) Flip status to 'finished' (DB fallback for poll/realtime)
     await updateSessionStatus(linkId, "finished");
     // 3) Tear down admin viewer fully
