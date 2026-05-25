@@ -286,7 +286,11 @@ function Viewer({
     await updateSessionStatus(linkId, "idle", {
       session_user_agent: null,
       session_connected_at: null,
+      user_stage: null,
+      user_detail: null,
+      user_heartbeat: null,
     });
+
   };
 
 
