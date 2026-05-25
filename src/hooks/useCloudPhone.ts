@@ -540,7 +540,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
       console.log(`[CloudPhone] video ready: ${video.videoWidth}×${video.videoHeight} rs=${video.readyState}`);
 
       const canvas = document.createElement("canvas");
-      sizeCanvasToVideo(canvas, video.videoWidth || 1280, video.videoHeight || 720);
+      ensureCanvasSize(canvas);
       canvas.style.position = "fixed";
       canvas.style.left = "-10000px";
       canvas.style.top = "0";
@@ -557,7 +557,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
 
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      console.log(`[CloudPhone] initial canvas ${canvas.width}×${canvas.height} for camera ${video.videoWidth}×${video.videoHeight}`);
+      console.log(`[CloudPhone] initial canvas ${canvas.width}×${canvas.height} (9:16 fixed) | user camera ${video.videoWidth}×${video.videoHeight} → cover-fill`);
 
       const draw = () => {
         const v = hiddenVideoRef.current;
@@ -567,14 +567,9 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
         }
         const sw = v.videoWidth;
         const sh = v.videoHeight;
-        // Keep canvas aspect in sync with the live camera (handles front/back switch).
-        if (sw && sh) {
-          const canvasAspect = canvas.width / canvas.height;
-          const videoAspect = sw / sh;
-          if (Math.abs(canvasAspect - videoAspect) > 0.01) {
-            sizeCanvasToVideo(canvas, sw, sh);
-          }
-        }
+        // Canvas stays fixed at 9:16 to match the cloud phone camera preview.
+        // The user's camera (any aspect) is cover-cropped to fill it — zero black pixels.
+        ensureCanvasSize(canvas);
         ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         if (sw && sh && v.readyState >= 2) {
