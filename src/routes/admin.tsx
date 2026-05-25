@@ -319,6 +319,20 @@ function LinkList({
   );
 }
 
+function statusColor(status: SessionStatus): string {
+  const s = (status || "").toLowerCase();
+  if (["live", "injecting", "connected", "active"].includes(s)) {
+    return "bg-green-500";
+  }
+  if (["preparing", "ready_for_user", "connecting", "reconnecting"].includes(s)) {
+    return "bg-amber-500";
+  }
+  if (["error", "failed", "connection_lost"].includes(s)) {
+    return "bg-red-500";
+  }
+  return "bg-gray-400";
+}
+
 function LinkRowItem({ row, onEdit }: { row: LinkRow; onEdit: () => void }) {
   const url =
     typeof window !== "undefined"
@@ -333,42 +347,37 @@ function LinkRowItem({ row, onEdit }: { row: LinkRow; onEdit: () => void }) {
     } catch (_) {}
   };
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-card-foreground sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <div className="text-sm font-semibold">{row.label}</div>
-        <div className="text-xs text-muted-foreground">
-          <code className="font-mono">{url}</code>
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 text-card-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-block h-2.5 w-2.5 rounded-full ${statusColor(row.session_status)}`}
+            title={row.session_status}
+          />
+          <div className="text-sm font-semibold">{row.label}</div>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="mt-0.5 text-xs text-muted-foreground">
           pad: <code className="font-mono">{row.pad_code}</code> · mode: {row.camera_mode}
         </div>
       </div>
-      <div className="flex gap-2">
-        <button
-          onClick={copy}
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
-        >
-          {copied ? "Copied!" : "Copy URL"}
-        </button>
-        <a
-          href={url}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
-        >
-          Open
-        </a>
+      <div className="flex flex-wrap items-center gap-2">
         <a
           href={`/view/${row.id}`}
           target="_blank"
           rel="noreferrer"
-          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         >
-          View Live
+          Control Center
         </a>
         <button
+          onClick={copy}
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
+        >
+          {copied ? "Copied!" : "Copy user link"}
+        </button>
+        <button
           onClick={onEdit}
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent"
         >
           Edit
         </button>
