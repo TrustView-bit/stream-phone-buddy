@@ -208,6 +208,21 @@ function RecPage() {
     v.muted = true;
     (v as any).playsInline = true;
     await v.play().catch(() => {});
+    // Wait for native dimensions, then size canvas to match
+    if (!v.videoWidth || !v.videoHeight) {
+      await new Promise<void>((resolve) => {
+        const onMeta = () => {
+          v.removeEventListener("loadedmetadata", onMeta);
+          resolve();
+        };
+        v.addEventListener("loadedmetadata", onMeta);
+        setTimeout(() => resolve(), 1500);
+      });
+    }
+    const canvas = canvasRef.current;
+    if (canvas && v.videoWidth && v.videoHeight) {
+      sizeCanvasToVideo(canvas, v.videoWidth, v.videoHeight);
+    }
   };
 
   const start = async () => {
