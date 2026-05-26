@@ -238,12 +238,17 @@ function RecPage() {
         throw new Error("Elementi video non pronti. Riprova.");
       }
 
-      // Pre-size canvas so captureStream has valid dimensions
+      // Pre-size canvas to a safe portrait default so captureStream has valid dimensions.
+      // It will be re-sized to the camera's native resolution as soon as the video plays.
       const canvas = canvasRef.current;
-      canvas.width = 720;
-      canvas.height = 1280;
+      if (!canvas.width || !canvas.height) {
+        canvas.width = 1080;
+        canvas.height = 1920;
+      }
       const ctx0 = canvas.getContext("2d");
       if (ctx0) {
+        ctx0.imageSmoothingEnabled = true;
+        ctx0.imageSmoothingQuality = "high";
         ctx0.fillStyle = "#000";
         ctx0.fillRect(0, 0, canvas.width, canvas.height);
       }
