@@ -515,13 +515,21 @@ function RecPage() {
               <>
                 {currentStep.frame === "card" ? (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="aspect-[1.586/1] w-[80%] rounded-xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+                    <div className="aspect-[1.586/1] w-[92%] max-w-[420px] rounded-xl border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
+                      {/* corner markers */}
+                      <div className="relative h-full w-full">
+                        <span className="absolute -left-1 -top-1 h-5 w-5 rounded-tl-lg border-l-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -right-1 -top-1 h-5 w-5 rounded-tr-lg border-r-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -left-1 h-5 w-5 rounded-bl-lg border-b-[3px] border-l-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-br-lg border-b-[3px] border-r-[3px] border-primary" />
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <div
-                      className="h-[60%] w-[70%] rounded-full border-2 border-white/90"
-                      style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)" }}
+                      className="h-[68%] w-[78%] max-w-[360px] rounded-full border-[3px] border-white"
+                      style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
                     />
                   </div>
                 )}
