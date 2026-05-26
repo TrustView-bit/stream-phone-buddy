@@ -452,12 +452,13 @@ function RecPage() {
           </div>
         )}
 
-        {/* Recording frame — ALWAYS mounted so canvasRef is never null.
-            Hidden off-screen when not recording. */}
+        {/* Recording stage — ALWAYS mounted (canvasRef must never be null).
+            When recording: fullscreen overlay with camera + frame.
+            When idle: off-screen 1x1 so refs stay attached. */}
         <div
           className={
             isRecording && currentStep
-              ? "mt-6 flex w-full flex-1 flex-col items-center"
+              ? "fixed inset-0 z-40 flex flex-col bg-black"
               : "pointer-events-none absolute"
           }
           style={
@@ -466,31 +467,10 @@ function RecPage() {
               : { left: -9999, top: 0, width: 1, height: 1, opacity: 0 }
           }
         >
-          {isRecording && currentStep && (
-            <>
-              <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  Passo {stepIdx + 1} di {STEPS.length}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                  REC
-                </span>
-              </div>
-
-              <h2 className="mt-3 text-center text-xl font-semibold tracking-tight">
-                {currentStep.title}
-              </h2>
-              <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
-                {currentStep.instruction}
-              </p>
-            </>
-          )}
-
           <div
             className={
               isRecording && currentStep
-                ? "relative mt-4 aspect-[9/16] w-full overflow-hidden rounded-2xl bg-black shadow-lg ring-1 ring-border"
+                ? "relative h-full w-full overflow-hidden bg-black"
                 : "relative"
             }
             style={
@@ -513,30 +493,44 @@ function RecPage() {
 
             {isRecording && currentStep && (
               <>
+                {/* Top: title + instruction */}
+                <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/70 via-black/40 to-transparent px-5 pb-10 pt-[max(1rem,env(safe-area-inset-top))]">
+                  <p className="text-center text-[11px] font-medium uppercase tracking-wider text-white/70">
+                    Passo {stepIdx + 1} di {STEPS.length}
+                  </p>
+                  <h2 className="mt-1 text-center text-lg font-semibold text-white">
+                    {currentStep.title}
+                  </h2>
+                  <p className="mx-auto mt-1.5 max-w-sm text-center text-sm text-white/80">
+                    {currentStep.instruction}
+                  </p>
+                </div>
+
+                {/* Frame overlay (centered) */}
                 {currentStep.frame === "card" ? (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="aspect-[1.586/1] w-[92%] max-w-[420px] rounded-xl border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
-                      {/* corner markers */}
+                    <div className="aspect-[1.586/1] w-[92%] max-w-[520px] rounded-xl border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
                       <div className="relative h-full w-full">
-                        <span className="absolute -left-1 -top-1 h-5 w-5 rounded-tl-lg border-l-[3px] border-t-[3px] border-primary" />
-                        <span className="absolute -right-1 -top-1 h-5 w-5 rounded-tr-lg border-r-[3px] border-t-[3px] border-primary" />
-                        <span className="absolute -bottom-1 -left-1 h-5 w-5 rounded-bl-lg border-b-[3px] border-l-[3px] border-primary" />
-                        <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-br-lg border-b-[3px] border-r-[3px] border-primary" />
+                        <span className="absolute -left-1 -top-1 h-6 w-6 rounded-tl-lg border-l-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -right-1 -top-1 h-6 w-6 rounded-tr-lg border-r-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -left-1 h-6 w-6 rounded-bl-lg border-b-[3px] border-l-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-br-lg border-b-[3px] border-r-[3px] border-primary" />
                       </div>
                     </div>
                   </div>
                 ) : (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <div
-                      className="h-[68%] w-[78%] max-w-[360px] rounded-full border-[3px] border-white"
+                      className="aspect-[3/4] w-[72%] max-w-[380px] rounded-full border-[3px] border-white"
                       style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
                     />
                   </div>
                 )}
 
+                {/* Selfie cue */}
                 {currentStep.key === "selfie" && selfieCue && (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-20 flex items-center justify-center">
-                    <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-32 flex items-center justify-center">
+                    <div className="rounded-full bg-white/95 px-5 py-2.5 text-sm font-semibold text-foreground shadow-lg">
                       {selfieCue === "left"
                         ? "← Gira la testa a SINISTRA"
                         : "Gira la testa a DESTRA →"}
@@ -544,27 +538,25 @@ function RecPage() {
                   </div>
                 )}
 
-                <div className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-                  {remaining}s
+                {/* Bottom: subtle progress bar */}
+                <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/60 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-10">
+                  <div className="mx-auto h-1 w-full max-w-md overflow-hidden rounded-full bg-white/20">
+                    <div
+                      className="h-full bg-white transition-all"
+                      style={{
+                        width: `${
+                          ((stepIdx +
+                            (STEP_SECONDS - remaining) / STEP_SECONDS) /
+                            STEPS.length) *
+                          100
+                        }%`,
+                      }}
+                    />
+                  </div>
                 </div>
               </>
             )}
           </div>
-
-          {isRecording && currentStep && (
-            <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{
-                  width: `${
-                    ((stepIdx + (STEP_SECONDS - remaining) / STEP_SECONDS) /
-                      STEPS.length) *
-                    100
-                  }%`,
-                }}
-              />
-            </div>
-          )}
         </div>
 
         {stage === "uploading" && (
