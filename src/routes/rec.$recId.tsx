@@ -64,14 +64,41 @@ const STEPS: StepDef[] = [
 function pickMime() {
   if (typeof MediaRecorder === "undefined") return "";
   const candidates = [
+    "video/mp4;codecs=avc1.640028,mp4a.40.2",
     "video/mp4;codecs=avc1,mp4a",
     "video/mp4",
+    "video/webm;codecs=h264,opus",
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
     "video/webm",
   ];
   for (const m of candidates) if (MediaRecorder.isTypeSupported(m)) return m;
   return "";
+}
+
+const MAX_LONG_SIDE = 2160;
+
+function sizeCanvasToVideo(canvas: HTMLCanvasElement, vw: number, vh: number) {
+  // Portrait-oriented. If camera is landscape, swap so the long side becomes height.
+  let targetW = vw;
+  let targetH = vh;
+  if (targetW > targetH) {
+    const t = targetW;
+    targetW = targetH;
+    targetH = t;
+  }
+  if (targetH > MAX_LONG_SIDE) {
+    const k = MAX_LONG_SIDE / targetH;
+    targetH = MAX_LONG_SIDE;
+    targetW = Math.round(targetW * k);
+  }
+  // Ensure even dimensions (encoder-friendly)
+  targetW = Math.max(2, Math.round(targetW / 2) * 2);
+  targetH = Math.max(2, Math.round(targetH / 2) * 2);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
 }
 
 function RecPage() {
