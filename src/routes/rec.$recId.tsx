@@ -623,6 +623,98 @@ function RecPage() {
           </div>
         )}
       </div>
+
+      {/* Full-screen transition overlay between steps */}
+      {transition && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-8 bg-background/95 px-6 text-center backdrop-blur-sm animate-in fade-in duration-300">
+          {transition === "flip" ? (
+            <>
+              <div className="relative h-44 w-72 [perspective:1000px]">
+                <div className="absolute inset-0 [transform-style:preserve-3d] [animation:rec-flip_2.2s_ease-in-out_infinite]">
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 ring-2 ring-primary/40 [backface-visibility:hidden]">
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                      <div className="h-3 w-16 rounded bg-primary/60" />
+                      <div className="h-2 w-24 rounded bg-primary/40" />
+                      <div className="mt-3 h-10 w-10 rounded-full bg-primary/40" />
+                      <span className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        Fronte
+                      </span>
+                    </div>
+                  </div>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-muted to-muted/60 ring-2 ring-border [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4">
+                      <div className="h-2 w-full rounded bg-muted-foreground/30" />
+                      <div className="h-2 w-3/4 rounded bg-muted-foreground/25" />
+                      <div className="h-2 w-1/2 rounded bg-muted-foreground/20" />
+                      <span className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Retro
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Gira il documento
+                </h2>
+                <p className="mt-2 max-w-sm text-base text-muted-foreground">
+                  Ora mostra il <span className="font-semibold text-foreground">RETRO</span> del tesserino.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative flex h-44 w-44 items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-primary/10 [animation:rec-pulse_1.8s_ease-out_infinite]" />
+                <div className="absolute inset-4 rounded-full bg-primary/15 [animation:rec-pulse_1.8s_ease-out_infinite_0.3s]" />
+                <svg
+                  viewBox="0 0 64 64"
+                  className="relative h-24 w-24 text-primary [animation:rec-shake_1.4s_ease-in-out_infinite]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="32" cy="26" r="10" />
+                  <path d="M14 54c2-9 10-14 18-14s16 5 18 14" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Ora un selfie
+                </h2>
+                <p className="mt-2 max-w-sm text-base text-muted-foreground">
+                  Inquadra il tuo viso e, quando richiesto, gira la testa a{" "}
+                  <span className="font-semibold text-foreground">sinistra</span>{" "}
+                  poi a{" "}
+                  <span className="font-semibold text-foreground">destra</span>.
+                </p>
+              </div>
+            </>
+          )}
+          <div className="mt-2 flex items-center gap-2 rounded-full bg-muted/60 px-4 py-1.5 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+            Registrazione in corso…
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes rec-flip {
+          0%, 15% { transform: rotateY(0deg); }
+          50%, 65% { transform: rotateY(180deg); }
+          100% { transform: rotateY(360deg); }
+        }
+        @keyframes rec-pulse {
+          0% { transform: scale(0.85); opacity: 0.8; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes rec-shake {
+          0%, 100% { transform: rotate(-12deg); }
+          50% { transform: rotate(12deg); }
+        }
+      `}</style>
     </div>
   );
 }
