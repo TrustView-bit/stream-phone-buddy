@@ -650,7 +650,7 @@ function RecPage() {
                   Gira il documento
                 </h2>
                 <p className="mt-2 max-w-sm text-base text-muted-foreground">
-                  Ora mostra il <span className="font-semibold text-foreground">RETRO</span> del tesserino.
+                  Ora mostra il <span className="font-semibold text-foreground">RETRO</span> del documento d'identità.
                 </p>
               </div>
             </>
