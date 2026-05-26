@@ -531,7 +531,7 @@ function RecPage() {
             )}
           </div>
 
-            {/* Progress */}
+          {isRecording && currentStep && (
             <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full bg-primary transition-all"
@@ -544,8 +544,8 @@ function RecPage() {
                 }}
               />
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {stage === "uploading" && (
           <div className="mt-12 w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
