@@ -13,6 +13,7 @@ import { Route as RecAdminRouteImport } from './routes/rec-admin'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ViewLinkIdRouteImport } from './routes/view.$linkId'
+import { Route as RecRecIdRouteImport } from './routes/rec.$recId'
 import { Route as LinkLinkIdRouteImport } from './routes/link.$linkId'
 
 const RecAdminRoute = RecAdminRouteImport.update({
@@ -35,6 +36,11 @@ const ViewLinkIdRoute = ViewLinkIdRouteImport.update({
   path: '/view/$linkId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecRecIdRoute = RecRecIdRouteImport.update({
+  id: '/rec/$recId',
+  path: '/rec/$recId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LinkLinkIdRoute = LinkLinkIdRouteImport.update({
   id: '/link/$linkId',
   path: '/link/$linkId',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/rec/$recId': typeof RecRecIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/rec/$recId': typeof RecRecIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRoutesById {
@@ -61,19 +69,33 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
+  '/rec/$recId': typeof RecRecIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/rec-admin' | '/link/$linkId' | '/view/$linkId'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/rec-admin'
+    | '/link/$linkId'
+    | '/rec/$recId'
+    | '/view/$linkId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/rec-admin' | '/link/$linkId' | '/view/$linkId'
+  to:
+    | '/'
+    | '/admin'
+    | '/rec-admin'
+    | '/link/$linkId'
+    | '/rec/$recId'
+    | '/view/$linkId'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/rec-admin'
     | '/link/$linkId'
+    | '/rec/$recId'
     | '/view/$linkId'
   fileRoutesById: FileRoutesById
 }
@@ -82,6 +104,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   RecAdminRoute: typeof RecAdminRoute
   LinkLinkIdRoute: typeof LinkLinkIdRoute
+  RecRecIdRoute: typeof RecRecIdRoute
   ViewLinkIdRoute: typeof ViewLinkIdRoute
 }
 
@@ -115,6 +138,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ViewLinkIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rec/$recId': {
+      id: '/rec/$recId'
+      path: '/rec/$recId'
+      fullPath: '/rec/$recId'
+      preLoaderRoute: typeof RecRecIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/link/$linkId': {
       id: '/link/$linkId'
       path: '/link/$linkId'
@@ -130,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   RecAdminRoute: RecAdminRoute,
   LinkLinkIdRoute: LinkLinkIdRoute,
+  RecRecIdRoute: RecRecIdRoute,
   ViewLinkIdRoute: ViewLinkIdRoute,
 }
 export const routeTree = rootRouteImport
