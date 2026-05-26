@@ -358,8 +358,35 @@ function RecPage() {
           />
         </div>
 
-        {/* Hidden working elements */}
-        <video ref={hiddenVideoRef} className="hidden" playsInline muted />
+        {/* Always-mounted working elements (refs must exist before start()) */}
+        <video
+          ref={hiddenVideoRef}
+          playsInline
+          muted
+          style={{
+            position: "fixed",
+            left: "-9999px",
+            top: 0,
+            width: 1,
+            height: 1,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+        />
+        {!isRecording && (
+          <canvas
+            ref={canvasRef}
+            style={{
+              position: "fixed",
+              left: "-9999px",
+              top: 0,
+              width: 1,
+              height: 1,
+              opacity: 0,
+              pointerEvents: "none",
+            }}
+          />
+        )}
 
         {stage === "intro" && (
           <div className="mt-6 flex w-full flex-1 flex-col items-center text-center">
