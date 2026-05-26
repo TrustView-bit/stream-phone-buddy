@@ -83,6 +83,7 @@ function RecPage() {
   const [remaining, setRemaining] = useState(STEP_SECONDS);
   const [progress, setProgress] = useState(0);
   const [selfieCue, setSelfieCue] = useState<"" | "left" | "right">("");
+  const [transition, setTransition] = useState<null | "flip" | "selfie">(null);
 
   const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
