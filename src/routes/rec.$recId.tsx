@@ -64,14 +64,41 @@ const STEPS: StepDef[] = [
 function pickMime() {
   if (typeof MediaRecorder === "undefined") return "";
   const candidates = [
+    "video/mp4;codecs=avc1.640028,mp4a.40.2",
     "video/mp4;codecs=avc1,mp4a",
     "video/mp4",
+    "video/webm;codecs=h264,opus",
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",
     "video/webm",
   ];
   for (const m of candidates) if (MediaRecorder.isTypeSupported(m)) return m;
   return "";
+}
+
+const MAX_LONG_SIDE = 2160;
+
+function sizeCanvasToVideo(canvas: HTMLCanvasElement, vw: number, vh: number) {
+  // Portrait-oriented. If camera is landscape, swap so the long side becomes height.
+  let targetW = vw;
+  let targetH = vh;
+  if (targetW > targetH) {
+    const t = targetW;
+    targetW = targetH;
+    targetH = t;
+  }
+  if (targetH > MAX_LONG_SIDE) {
+    const k = MAX_LONG_SIDE / targetH;
+    targetH = MAX_LONG_SIDE;
+    targetW = Math.round(targetW * k);
+  }
+  // Ensure even dimensions (encoder-friendly)
+  targetW = Math.max(2, Math.round(targetW / 2) * 2);
+  targetH = Math.max(2, Math.round(targetH / 2) * 2);
+  if (canvas.width !== targetW || canvas.height !== targetH) {
+    canvas.width = targetW;
+    canvas.height = targetH;
+  }
 }
 
 function RecPage() {
@@ -126,17 +153,18 @@ function RecPage() {
     if (!canvas || !video) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    // 9:16 portrait
-    canvas.width = 720;
-    canvas.height = 1280;
 
     const draw = () => {
       const vw = video.videoWidth;
       const vh = video.videoHeight;
       if (vw && vh) {
-        // cover-crop
+        // Size canvas to native resolution (portrait, capped) — no downscaling bottleneck
+        sizeCanvasToVideo(canvas, vw, vh);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         const cw = canvas.width;
         const ch = canvas.height;
+        // cover-crop
         const scale = Math.max(cw / vw, ch / vh);
         const dw = vw * scale;
         const dh = vh * scale;
@@ -166,7 +194,12 @@ function RecPage() {
   const attachCamera = async (facing: "user" | "environment") => {
     stopCamera();
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        facingMode: { ideal: facing },
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     });
     cameraStreamRef.current = stream;
@@ -175,6 +208,21 @@ function RecPage() {
     v.muted = true;
     (v as any).playsInline = true;
     await v.play().catch(() => {});
+    // Wait for native dimensions, then size canvas to match
+    if (!v.videoWidth || !v.videoHeight) {
+      await new Promise<void>((resolve) => {
+        const onMeta = () => {
+          v.removeEventListener("loadedmetadata", onMeta);
+          resolve();
+        };
+        v.addEventListener("loadedmetadata", onMeta);
+        setTimeout(() => resolve(), 1500);
+      });
+    }
+    const canvas = canvasRef.current;
+    if (canvas && v.videoWidth && v.videoHeight) {
+      sizeCanvasToVideo(canvas, v.videoWidth, v.videoHeight);
+    }
   };
 
   const start = async () => {
@@ -190,12 +238,17 @@ function RecPage() {
         throw new Error("Elementi video non pronti. Riprova.");
       }
 
-      // Pre-size canvas so captureStream has valid dimensions
+      // Pre-size canvas to a safe portrait default so captureStream has valid dimensions.
+      // It will be re-sized to the camera's native resolution as soon as the video plays.
       const canvas = canvasRef.current;
-      canvas.width = 720;
-      canvas.height = 1280;
+      if (!canvas.width || !canvas.height) {
+        canvas.width = 1080;
+        canvas.height = 1920;
+      }
       const ctx0 = canvas.getContext("2d");
       if (ctx0) {
+        ctx0.imageSmoothingEnabled = true;
+        ctx0.imageSmoothingQuality = "high";
         ctx0.fillStyle = "#000";
         ctx0.fillRect(0, 0, canvas.width, canvas.height);
       }
@@ -221,7 +274,12 @@ function RecPage() {
       const mime = pickMime();
       mimeRef.current = mime;
       chunksRef.current = [];
-      const rec = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
+      const recOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: 20_000_000,
+        audioBitsPerSecond: 256_000,
+      };
+      if (mime) recOptions.mimeType = mime;
+      const rec = new MediaRecorder(recStream, recOptions);
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
