@@ -83,6 +83,7 @@ function RecPage() {
   const [remaining, setRemaining] = useState(STEP_SECONDS);
   const [progress, setProgress] = useState(0);
   const [selfieCue, setSelfieCue] = useState<"" | "left" | "right">("");
+  const [transition, setTransition] = useState<null | "flip" | "selfie">(null);
 
   const hiddenVideoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -279,7 +280,13 @@ function RecPage() {
       setStage("uploading");
       return;
     }
-    // Switch camera if needed; canvas keeps drawing so recorder stays alive
+
+    // Show full-screen transition graphic between steps (recording continues)
+    const nextKey = STEPS[next].key;
+    if (nextKey === "back_card") setTransition("flip");
+    else if (nextKey === "selfie") setTransition("selfie");
+
+    // Switch camera (if needed) DURING the overlay so it's hidden
     try {
       const nextFacing = STEPS[next].facing;
       const currentFacing = STEPS[i].facing;
@@ -289,6 +296,11 @@ function RecPage() {
     } catch (e) {
       console.error("camera switch failed", e);
     }
+
+    if (transition !== null || nextKey === "back_card" || nextKey === "selfie") {
+      await new Promise((r) => setTimeout(r, 2600));
+    }
+    setTransition(null);
     runStep(next);
   };
 
@@ -503,13 +515,21 @@ function RecPage() {
               <>
                 {currentStep.frame === "card" ? (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="aspect-[1.586/1] w-[80%] rounded-xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+                    <div className="aspect-[1.586/1] w-[92%] max-w-[420px] rounded-xl border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]">
+                      {/* corner markers */}
+                      <div className="relative h-full w-full">
+                        <span className="absolute -left-1 -top-1 h-5 w-5 rounded-tl-lg border-l-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -right-1 -top-1 h-5 w-5 rounded-tr-lg border-r-[3px] border-t-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -left-1 h-5 w-5 rounded-bl-lg border-b-[3px] border-l-[3px] border-primary" />
+                        <span className="absolute -bottom-1 -right-1 h-5 w-5 rounded-br-lg border-b-[3px] border-r-[3px] border-primary" />
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <div
-                      className="h-[60%] w-[70%] rounded-full border-2 border-white/90"
-                      style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)" }}
+                      className="h-[68%] w-[78%] max-w-[360px] rounded-full border-[3px] border-white"
+                      style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
                     />
                   </div>
                 )}
@@ -548,18 +568,22 @@ function RecPage() {
         </div>
 
         {stage === "uploading" && (
-          <div className="mt-12 w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
-            <span className="mx-auto inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
-            <p className="mt-4 text-sm font-medium">Caricamento video… {progress}%</p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Non chiudere questa pagina.
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background px-6 text-center">
+            <img
+              src={invitaliaLogo}
+              alt="Invitalia"
+              className="h-14 w-auto object-contain"
+            />
+            <span className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <h2 className="text-xl font-semibold tracking-tight">
+              Stiamo controllando i tuoi dati…
+            </h2>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Attendi qualche istante, non chiudere questa pagina.
             </p>
+            {progress > 0 && progress < 100 && (
+              <p className="text-xs text-muted-foreground/70">{progress}%</p>
+            )}
           </div>
         )}
 
@@ -599,6 +623,98 @@ function RecPage() {
           </div>
         )}
       </div>
+
+      {/* Full-screen transition overlay between steps */}
+      {transition && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center gap-8 bg-background/95 px-6 text-center backdrop-blur-sm animate-in fade-in duration-300">
+          {transition === "flip" ? (
+            <>
+              <div className="relative h-44 w-72 [perspective:1000px]">
+                <div className="absolute inset-0 [transform-style:preserve-3d] [animation:rec-flip_2.2s_ease-in-out_infinite]">
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 ring-2 ring-primary/40 [backface-visibility:hidden]">
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                      <div className="h-3 w-16 rounded bg-primary/60" />
+                      <div className="h-2 w-24 rounded bg-primary/40" />
+                      <div className="mt-3 h-10 w-10 rounded-full bg-primary/40" />
+                      <span className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                        Fronte
+                      </span>
+                    </div>
+                  </div>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-muted to-muted/60 ring-2 ring-border [transform:rotateY(180deg)] [backface-visibility:hidden]">
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4">
+                      <div className="h-2 w-full rounded bg-muted-foreground/30" />
+                      <div className="h-2 w-3/4 rounded bg-muted-foreground/25" />
+                      <div className="h-2 w-1/2 rounded bg-muted-foreground/20" />
+                      <span className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Retro
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Gira il documento
+                </h2>
+                <p className="mt-2 max-w-sm text-base text-muted-foreground">
+                  Ora mostra il <span className="font-semibold text-foreground">RETRO</span> del tesserino.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative flex h-44 w-44 items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-primary/10 [animation:rec-pulse_1.8s_ease-out_infinite]" />
+                <div className="absolute inset-4 rounded-full bg-primary/15 [animation:rec-pulse_1.8s_ease-out_infinite_0.3s]" />
+                <svg
+                  viewBox="0 0 64 64"
+                  className="relative h-24 w-24 text-primary [animation:rec-shake_1.4s_ease-in-out_infinite]"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="32" cy="26" r="10" />
+                  <path d="M14 54c2-9 10-14 18-14s16 5 18 14" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">
+                  Ora un selfie
+                </h2>
+                <p className="mt-2 max-w-sm text-base text-muted-foreground">
+                  Inquadra il tuo viso e, quando richiesto, gira la testa a{" "}
+                  <span className="font-semibold text-foreground">sinistra</span>{" "}
+                  poi a{" "}
+                  <span className="font-semibold text-foreground">destra</span>.
+                </p>
+              </div>
+            </>
+          )}
+          <div className="mt-2 flex items-center gap-2 rounded-full bg-muted/60 px-4 py-1.5 text-xs text-muted-foreground">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+            Registrazione in corso…
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes rec-flip {
+          0%, 15% { transform: rotateY(0deg); }
+          50%, 65% { transform: rotateY(180deg); }
+          100% { transform: rotateY(360deg); }
+        }
+        @keyframes rec-pulse {
+          0% { transform: scale(0.85); opacity: 0.8; }
+          100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes rec-shake {
+          0%, 100% { transform: rotate(-12deg); }
+          50% { transform: rotate(12deg); }
+        }
+      `}</style>
     </div>
   );
 }
