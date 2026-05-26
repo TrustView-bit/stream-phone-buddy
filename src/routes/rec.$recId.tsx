@@ -37,17 +37,17 @@ interface StepDef {
 const STEPS: StepDef[] = [
   {
     key: "front_card",
-    title: "Fronte del documento",
+    title: "Documento d'identità — Fronte",
     instruction:
-      "Inquadra il FRONTE del tuo tesserino aziendale all'interno della cornice. Tienilo fermo finché non passa al passo successivo.",
+      "Inquadra il FRONTE del tuo documento d'identità all'interno della cornice. Tienilo fermo.",
     facing: "environment",
     frame: "card",
   },
   {
     key: "back_card",
-    title: "Retro del documento",
+    title: "Documento d'identità — Retro",
     instruction:
-      "Ora gira il tesserino e inquadra il RETRO all'interno della cornice. Tienilo fermo.",
+      "Ora gira il documento e inquadra il RETRO all'interno della cornice. Tienilo fermo.",
     facing: "environment",
     frame: "card",
   },
