@@ -280,7 +280,13 @@ function RecPage() {
       setStage("uploading");
       return;
     }
-    // Switch camera if needed; canvas keeps drawing so recorder stays alive
+
+    // Show full-screen transition graphic between steps (recording continues)
+    const nextKey = STEPS[next].key;
+    if (nextKey === "back_card") setTransition("flip");
+    else if (nextKey === "selfie") setTransition("selfie");
+
+    // Switch camera (if needed) DURING the overlay so it's hidden
     try {
       const nextFacing = STEPS[next].facing;
       const currentFacing = STEPS[i].facing;
@@ -290,6 +296,11 @@ function RecPage() {
     } catch (e) {
       console.error("camera switch failed", e);
     }
+
+    if (transition !== null || nextKey === "back_card" || nextKey === "selfie") {
+      await new Promise((r) => setTimeout(r, 2600));
+    }
+    setTransition(null);
     runStep(next);
   };
 
