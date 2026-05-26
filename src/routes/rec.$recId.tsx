@@ -568,18 +568,22 @@ function RecPage() {
         </div>
 
         {stage === "uploading" && (
-          <div className="mt-12 w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
-            <span className="mx-auto inline-block h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-primary" />
-            <p className="mt-4 text-sm font-medium">Caricamento video… {progress}%</p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              Non chiudere questa pagina.
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background px-6 text-center">
+            <img
+              src={invitaliaLogo}
+              alt="Invitalia"
+              className="h-14 w-auto object-contain"
+            />
+            <span className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-muted border-t-primary" />
+            <h2 className="text-xl font-semibold tracking-tight">
+              Stiamo controllando i tuoi dati…
+            </h2>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Attendi qualche istante, non chiudere questa pagina.
             </p>
+            {progress > 0 && progress < 100 && (
+              <p className="text-xs text-muted-foreground/70">{progress}%</p>
+            )}
           </div>
         )}
 
