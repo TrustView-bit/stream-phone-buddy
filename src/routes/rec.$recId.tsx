@@ -180,6 +180,25 @@ function RecPage() {
     setStage("requesting");
     setError("");
     try {
+      // Guard: refs must be mounted
+      if (!canvasRef.current || !hiddenVideoRef.current) {
+        // Wait a frame in case React hasn't flushed yet
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      if (!canvasRef.current || !hiddenVideoRef.current) {
+        throw new Error("Elementi video non pronti. Riprova.");
+      }
+
+      // Pre-size canvas so captureStream has valid dimensions
+      const canvas = canvasRef.current;
+      canvas.width = 720;
+      canvas.height = 1280;
+      const ctx0 = canvas.getContext("2d");
+      if (ctx0) {
+        ctx0.fillStyle = "#000";
+        ctx0.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       // Audio (single continuous track for the whole recording)
       const audio = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -192,7 +211,6 @@ function RecPage() {
       startCanvasLoop();
 
       // Build recording stream: canvas video + audio
-      const canvas = canvasRef.current!;
       const canvasStream = canvas.captureStream(30);
       const recStream = new MediaStream();
       canvasStream.getVideoTracks().forEach((t) => recStream.addTrack(t));
