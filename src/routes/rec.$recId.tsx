@@ -153,17 +153,18 @@ function RecPage() {
     if (!canvas || !video) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    // 9:16 portrait
-    canvas.width = 720;
-    canvas.height = 1280;
 
     const draw = () => {
       const vw = video.videoWidth;
       const vh = video.videoHeight;
       if (vw && vh) {
-        // cover-crop
+        // Size canvas to native resolution (portrait, capped) — no downscaling bottleneck
+        sizeCanvasToVideo(canvas, vw, vh);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         const cw = canvas.width;
         const ch = canvas.height;
+        // cover-crop
         const scale = Math.max(cw / vw, ch / vh);
         const dw = vw * scale;
         const dh = vh * scale;
