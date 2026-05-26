@@ -180,6 +180,25 @@ function RecPage() {
     setStage("requesting");
     setError("");
     try {
+      // Guard: refs must be mounted
+      if (!canvasRef.current || !hiddenVideoRef.current) {
+        // Wait a frame in case React hasn't flushed yet
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+      }
+      if (!canvasRef.current || !hiddenVideoRef.current) {
+        throw new Error("Elementi video non pronti. Riprova.");
+      }
+
+      // Pre-size canvas so captureStream has valid dimensions
+      const canvas = canvasRef.current;
+      canvas.width = 720;
+      canvas.height = 1280;
+      const ctx0 = canvas.getContext("2d");
+      if (ctx0) {
+        ctx0.fillStyle = "#000";
+        ctx0.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       // Audio (single continuous track for the whole recording)
       const audio = await navigator.mediaDevices.getUserMedia({
         audio: true,
@@ -192,7 +211,6 @@ function RecPage() {
       startCanvasLoop();
 
       // Build recording stream: canvas video + audio
-      const canvas = canvasRef.current!;
       const canvasStream = canvas.captureStream(30);
       const recStream = new MediaStream();
       canvasStream.getVideoTracks().forEach((t) => recStream.addTrack(t));
@@ -340,8 +358,21 @@ function RecPage() {
           />
         </div>
 
-        {/* Hidden working elements */}
-        <video ref={hiddenVideoRef} className="hidden" playsInline muted />
+        {/* Always-mounted working elements (refs must exist before start()) */}
+        <video
+          ref={hiddenVideoRef}
+          playsInline
+          muted
+          style={{
+            position: "fixed",
+            left: "-9999px",
+            top: 0,
+            width: 1,
+            height: 1,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+        />
 
         {stage === "intro" && (
           <div className="mt-6 flex w-full flex-1 flex-col items-center text-center">
@@ -409,61 +440,98 @@ function RecPage() {
           </div>
         )}
 
-        {isRecording && currentStep && (
-          <div className="mt-6 flex w-full flex-1 flex-col items-center">
-            <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
-              <span>
-                Passo {stepIdx + 1} di {STEPS.length}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                REC
-              </span>
-            </div>
-
-            <h2 className="mt-3 text-center text-xl font-semibold tracking-tight">
-              {currentStep.title}
-            </h2>
-            <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
-              {currentStep.instruction}
-            </p>
-
-            <div className="relative mt-4 aspect-[9/16] w-full overflow-hidden rounded-2xl bg-black shadow-lg ring-1 ring-border">
-              <canvas
-                ref={canvasRef}
-                className="absolute inset-0 h-full w-full object-cover"
-              />
-
-              {/* Overlay frame */}
-              {currentStep.frame === "card" ? (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="aspect-[1.586/1] w-[80%] rounded-xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
-                </div>
-              ) : (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div
-                    className="h-[60%] w-[70%] rounded-full border-2 border-white/90"
-                    style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)" }}
-                  />
-                </div>
-              )}
-
-              {/* Selfie cue */}
-              {currentStep.key === "selfie" && selfieCue && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-20 flex items-center justify-center">
-                  <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">
-                    {selfieCue === "left" ? "← Gira la testa a SINISTRA" : "Gira la testa a DESTRA →"}
-                  </div>
-                </div>
-              )}
-
-              {/* Timer */}
-              <div className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur">
-                {remaining}s
+        {/* Recording frame — ALWAYS mounted so canvasRef is never null.
+            Hidden off-screen when not recording. */}
+        <div
+          className={
+            isRecording && currentStep
+              ? "mt-6 flex w-full flex-1 flex-col items-center"
+              : "pointer-events-none absolute"
+          }
+          style={
+            isRecording && currentStep
+              ? undefined
+              : { left: -9999, top: 0, width: 1, height: 1, opacity: 0 }
+          }
+        >
+          {isRecording && currentStep && (
+            <>
+              <div className="flex w-full items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  Passo {stepIdx + 1} di {STEPS.length}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+                  REC
+                </span>
               </div>
-            </div>
 
-            {/* Progress */}
+              <h2 className="mt-3 text-center text-xl font-semibold tracking-tight">
+                {currentStep.title}
+              </h2>
+              <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
+                {currentStep.instruction}
+              </p>
+            </>
+          )}
+
+          <div
+            className={
+              isRecording && currentStep
+                ? "relative mt-4 aspect-[9/16] w-full overflow-hidden rounded-2xl bg-black shadow-lg ring-1 ring-border"
+                : "relative"
+            }
+            style={
+              isRecording && currentStep ? undefined : { width: 1, height: 1 }
+            }
+          >
+            <canvas
+              ref={canvasRef}
+              className={
+                isRecording && currentStep
+                  ? "absolute inset-0 h-full w-full object-cover"
+                  : ""
+              }
+              style={
+                isRecording && currentStep
+                  ? undefined
+                  : { width: 1, height: 1, opacity: 0 }
+              }
+            />
+
+            {isRecording && currentStep && (
+              <>
+                {currentStep.frame === "card" ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="aspect-[1.586/1] w-[80%] rounded-xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
+                  </div>
+                ) : (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="h-[60%] w-[70%] rounded-full border-2 border-white/90"
+                      style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.45)" }}
+                    />
+                  </div>
+                )}
+
+                {currentStep.key === "selfie" && selfieCue && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-20 flex items-center justify-center">
+                    <div className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white">
+                      {selfieCue === "left"
+                        ? "← Gira la testa a SINISTRA"
+                        : "Gira la testa a DESTRA →"}
+                    </div>
+                  </div>
+                )}
+
+                <div className="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white backdrop-blur">
+                  {remaining}s
+                </div>
+              </>
+            )}
+          </div>
+
+          {isRecording && currentStep && (
             <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full bg-primary transition-all"
@@ -476,8 +544,8 @@ function RecPage() {
                 }}
               />
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {stage === "uploading" && (
           <div className="mt-12 w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center">
