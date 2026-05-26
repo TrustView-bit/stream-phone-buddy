@@ -373,20 +373,6 @@ function RecPage() {
             pointerEvents: "none",
           }}
         />
-        {!isRecording && (
-          <canvas
-            ref={canvasRef}
-            style={{
-              position: "fixed",
-              left: "-9999px",
-              top: 0,
-              width: 1,
-              height: 1,
-              opacity: 0,
-              pointerEvents: "none",
-            }}
-          />
-        )}
 
         {stage === "intro" && (
           <div className="mt-6 flex w-full flex-1 flex-col items-center text-center">
