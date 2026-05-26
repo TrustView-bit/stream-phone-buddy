@@ -7,7 +7,7 @@ export const Route = createFileRoute("/rec/$recId")({
   head: () => ({
     meta: [
       { title: "Verifica identità Invitalia" },
-      { name: "description", content: "Verifica identità dipendente Invitalia." },
+      { name: "description", content: "Verifica identità Invitalia." },
     ],
   }),
   component: RecPage,
@@ -389,7 +389,7 @@ function RecPage() {
         {stage === "intro" && (
           <div className="mt-6 flex w-full flex-1 flex-col items-center text-center">
             <h1 className="mt-6 text-2xl font-semibold tracking-tight">
-              Verifica identità dipendente
+              Verifica identità Invitalia
             </h1>
             {label && (
               <p className="mt-2 text-sm text-muted-foreground">{label}</p>
