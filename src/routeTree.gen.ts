@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RecAdminRouteImport } from './routes/rec-admin'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ViewLinkIdRouteImport } from './routes/view.$linkId'
 import { Route as LinkLinkIdRouteImport } from './routes/link.$linkId'
 
+const RecAdminRoute = RecAdminRouteImport.update({
+  id: '/rec-admin',
+  path: '/rec-admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -38,12 +44,14 @@ const LinkLinkIdRoute = LinkLinkIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
@@ -51,26 +59,41 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/rec-admin': typeof RecAdminRoute
   '/link/$linkId': typeof LinkLinkIdRoute
   '/view/$linkId': typeof ViewLinkIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
+  fullPaths: '/' | '/admin' | '/rec-admin' | '/link/$linkId' | '/view/$linkId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
-  id: '__root__' | '/' | '/admin' | '/link/$linkId' | '/view/$linkId'
+  to: '/' | '/admin' | '/rec-admin' | '/link/$linkId' | '/view/$linkId'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/rec-admin'
+    | '/link/$linkId'
+    | '/view/$linkId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  RecAdminRoute: typeof RecAdminRoute
   LinkLinkIdRoute: typeof LinkLinkIdRoute
   ViewLinkIdRoute: typeof ViewLinkIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/rec-admin': {
+      id: '/rec-admin'
+      path: '/rec-admin'
+      fullPath: '/rec-admin'
+      preLoaderRoute: typeof RecAdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
       id: '/admin'
       path: '/admin'
@@ -105,9 +128,20 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  RecAdminRoute: RecAdminRoute,
   LinkLinkIdRoute: LinkLinkIdRoute,
   ViewLinkIdRoute: ViewLinkIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
