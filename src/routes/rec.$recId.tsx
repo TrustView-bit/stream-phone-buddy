@@ -194,7 +194,12 @@ function RecPage() {
   const attachCamera = async (facing: "user" | "environment") => {
     stopCamera();
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      video: {
+        facingMode: { ideal: facing },
+        width: { ideal: 3840 },
+        height: { ideal: 2160 },
+        frameRate: { ideal: 30 },
+      },
       audio: false,
     });
     cameraStreamRef.current = stream;
