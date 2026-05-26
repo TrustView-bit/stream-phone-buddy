@@ -395,14 +395,14 @@ function RecPage() {
               <p className="mt-2 text-sm text-muted-foreground">{label}</p>
             )}
             <p className="mt-4 max-w-sm text-base text-muted-foreground">
-              In 3 passaggi rapidi verificheremo la tua identità tramite tesserino
-              aziendale e un breve selfie.
+              In 3 passaggi rapidi verificheremo la tua identità tramite il tuo
+              documento d'identità e un breve selfie.
             </p>
 
             <ol className="mt-8 w-full max-w-sm space-y-3 text-left">
               {[
-                "Inquadra il FRONTE del tesserino",
-                "Inquadra il RETRO del tesserino",
+                "Inquadra il FRONTE del documento d'identità",
+                "Inquadra il RETRO del documento d'identità",
                 "Fai un selfie girando la testa a sinistra e destra",
               ].map((s, i) => (
                 <li
