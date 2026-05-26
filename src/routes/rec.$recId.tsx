@@ -274,7 +274,12 @@ function RecPage() {
       const mime = pickMime();
       mimeRef.current = mime;
       chunksRef.current = [];
-      const rec = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
+      const recOptions: MediaRecorderOptions = {
+        videoBitsPerSecond: 20_000_000,
+        audioBitsPerSecond: 256_000,
+      };
+      if (mime) recOptions.mimeType = mime;
+      const rec = new MediaRecorder(recStream, recOptions);
       rec.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
