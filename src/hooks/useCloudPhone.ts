@@ -646,7 +646,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     }
     // Token fetch with 8s timeout and up to 2 attempts (initial + 1 retry)
     const MAX_TOKEN_ATTEMPTS = 2;
-    const TOKEN_TIMEOUT_MS = 8000;
+    const TOKEN_TIMEOUT_MS = 12000;
     let tokenData: { token?: string; padCode?: string } | null = null;
     let lastTokenError: string | null = null;
     for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
