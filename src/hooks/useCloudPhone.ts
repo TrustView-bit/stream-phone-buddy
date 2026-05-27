@@ -41,7 +41,7 @@ export function useCloudPhone(options: UseCloudPhoneOptions): UseCloudPhoneResul
     padCode: padCodeOverride,
     viewId = "phoneBox",
     backQuality = { definitionId: 17, framerateId: 6, bitrateId: 11 },
-    frontQuality = { definitionId: 15, framerateId: 8, bitrateId: 8 },
+    frontQuality = { definitionId: 15, framerateId: 3, bitrateId: 8 },
   } = options;
 
   const [status, setStatus] = useState("Idle");
