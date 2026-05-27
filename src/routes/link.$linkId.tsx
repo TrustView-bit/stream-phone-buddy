@@ -357,6 +357,16 @@ function LiveLink({
   const isRecoveringStatus = (s: string) =>
     /reconnecting|connection issue/i.test(s.toLowerCase());
 
+  const isInProgressStatus = (s: string) => {
+    const t = s.toLowerCase();
+    return /releasing|requesting token|token timed out|token error|connected$|switching camera/i.test(t);
+  };
+
+  const isHardFailStatus = (s: string) => {
+    const t = s.toLowerCase();
+    return /connection failed|connect failed|init failed|missing pad code|session ended|does not support|stream unavailable/i.test(t);
+  };
+
   const clearWatchdog = () => {
     if (watchdogTimerRef.current) {
       clearTimeout(watchdogTimerRef.current);
@@ -364,18 +374,37 @@ function LiveLink({
     }
   };
 
+  const WATCHDOG_MS = 20000;
+
   const scheduleWatchdog = () => {
     clearWatchdog();
     watchdogTimerRef.current = setTimeout(() => {
       watchdogTimerRef.current = null;
       const s = statusRef.current;
-      if (isSuccessStatus(s)) return;
-      if (isRecoveringStatus(s)) { scheduleWatchdog(); return; }
-      if (watchdogAttemptRef.current >= 3) { setExhausted(true); return; }
+      if (isSuccessStatus(s)) {
+        console.log("[LinkPage] watchdog: success status, no action", { status: s });
+        return;
+      }
+      if (isRecoveringStatus(s)) {
+        console.log("[LinkPage] watchdog: recovering, waiting longer", { status: s });
+        scheduleWatchdog();
+        return;
+      }
+      if (isInProgressStatus(s) && !isHardFailStatus(s)) {
+        console.log("[LinkPage] watchdog: connection in progress, NOT tearing down — extending wait", { status: s });
+        scheduleWatchdog();
+        return;
+      }
+      if (watchdogAttemptRef.current >= 3) {
+        console.warn("[LinkPage] watchdog: max attempts reached, giving up", { status: s });
+        setExhausted(true);
+        return;
+      }
+      console.warn("[LinkPage] watchdog: tearing down and retrying", { status: s, attempt: watchdogAttemptRef.current + 1 });
       watchdogAttemptRef.current += 1;
       setRetryAttempt(watchdogAttemptRef.current);
       void runTransition(true);
-    }, 6000);
+    }, WATCHDOG_MS);
   };
 
 
